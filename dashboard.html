@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard · TextCoach</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Tesseract.js for OCR -->
+  <script src="https://unpkg.com/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['Space Grotesk', 'sans-serif'],
+            body: ['DM Sans', 'sans-serif'],
+          },
+          colors: {
+            surface: {
+              50: '#fafaf9',
+              100: '#f5f5f4',
+              200: '#e7e5e4',
+              300: '#d6d3d1',
+              400: '#a8a29e',
+              500: '#78716c',
+              600: '#57534e',
+              700: '#44403c',
+              800: '#292524',
+              900: '#1c1917',
+              950: '#0c0a09',
+            },
+            accent: {
+              DEFAULT: '#f97316',
+              light: '#fb923c',
+              dark: '#ea580c',
+              muted: '#fed7aa',
+            },
+            success: '#10b981',
+            warning: '#f59e0b',
+            danger: '#ef4444',
+          },
+          animation: {
+            'fade-in': 'fadeIn 0.5s cubic-bezier(0.16,1,0.3,1)',
+            'scale-in': 'scaleIn 0.4s cubic-bezier(0.16,1,0.3,1)',
+            'spin': 'spin 1s linear infinite',
+            'pulse-slow': 'pulse 3s ease-in-out infinite',
+            'slide-up': 'slideUp 0.6s cubic-bezier(0.16,1,0.3,1)',
+          },
+          keyframes: {
+            fadeIn: { '0%': { opacity: '0', transform: 'translateY(10px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+            scaleIn: { '0%': { opacity: '0', transform: 'scale(0.95)' }, '100%': { opacity: '1', transform: 'scale(1)' } },
+            slideUp: { '0%': { opacity: '0', transform: 'translateY(20px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+          },
+        },
+      },
+    }
+  </script>
+  <style>
+    :root {
+      --bg: #0c0a09;
+      --bg-elevated: #1c1917;
+      --fg: #fafaf9;
+      --fg-muted: #a8a29e;
+      --accent: #f97316;
+      --border: #292524;
+      --card-bg: #1a1714; /* warm dark */
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      min-height: 100vh;
+    }
+    .font-display { font-family: 'Space Grotesk', sans-serif; }
+
+    .bg-mesh {
+      position: fixed; inset: 0; z-index: -1;
+      background: radial-gradient(ellipse 80% 50% at 20% -10%, rgba(249,115,22,0.08), transparent),
+                  radial-gradient(ellipse 60% 40% at 80% 100%, rgba(249,115,22,0.05), transparent),
+                  radial-gradient(ellipse 100% 80% at 50% 50%, rgba(28,25,23,1), transparent);
+    }
+    .noise-overlay {
+      position: fixed; inset: 0; z-index: -1; opacity: 0.02;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    }
+
+    /* unified card style (dark) */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      backdrop-filter: blur(4px);
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+    .card:hover {
+      border-color: rgba(249,115,22,0.3);
+      box-shadow: 0 20px 30px -15px rgba(249,115,22,0.15);
+    }
+
+    .input-field {
+      background: rgba(28,25,23,0.6);
+      border: 1px solid #3f3a37;
+      border-radius: 16px;
+      color: white;
+      transition: all 0.2s;
+    }
+    .input-field:focus {
+      border-color: #f97316;
+      box-shadow: 0 0 0 3px rgba(249,115,22,0.2);
+      outline: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(145deg, #f97316, #ea580c);
+      transition: all 0.2s;
+    }
+    .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 15px 25px -10px #f97316; }
+    .btn-primary:active:not(:disabled) { transform: translateY(0); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid #3f3a37;
+      transition: all 0.2s;
+    }
+    .btn-secondary:hover { background: rgba(249,115,22,0.1); border-color: #f97316; }
+
+    .dropdown-menu {
+      transform: translateY(-10px); opacity: 0; visibility: hidden;
+      transition: all 0.2s;
+    }
+    .dropdown-menu.open { transform: translateY(0); opacity: 1; visibility: visible; }
+
+    .reply-card {
+      background: rgba(41,37,36,0.6);
+      border: 1px solid #3f3a37;
+      border-radius: 20px;
+      transition: all 0.2s;
+    }
+    .reply-card:hover {
+      border-color: rgba(249,115,22,0.3);
+      transform: translateY(-2px);
+    }
+
+    .toast {
+      transform: translateX(100%); opacity: 0;
+      transition: all 0.3s;
+    }
+    .toast.show { transform: translateX(0); opacity: 1; }
+
+    .progress-ring__circle {
+      transition: stroke-dashoffset 0.35s;
+      transform: rotate(-90deg);
+      transform-origin: 50% 50%;
+    }
+
+    :focus-visible { outline: 2px solid #f97316; outline-offset: 2px; }
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #3f3a37; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #78716c; }
+  </style>
+</head>
+<body>
+  <div class="bg-mesh"></div>
+  <div class="noise-overlay"></div>
+
+  <!-- Navbar (dark, refined) -->
+  <nav class="fixed top-0 left-0 right-0 z-50 border-b border-surface-800/50 backdrop-blur-xl bg-surface-950/90">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <a href="index.html" class="flex items-center gap-2 group">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-accent to-accent-dark flex items-center justify-center transition-transform group-hover:scale-105">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+            </svg>
+          </div>
+          <span class="font-display font-semibold text-lg text-surface-50 hidden sm:block">TextCoach</span>
+        </a>
+
+        <div class="flex items-center gap-3">
+          <div id="credits-counter" class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-800/60 border border-surface-700">
+            <svg class="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+            </svg>
+            <span class="text-sm text-surface-300"><span id="credits-remaining">0</span> credits</span>
+          </div>
+
+          <a href="upgrade.html" id="upgrade-nav-btn" class="hidden sm:inline-flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-light text-white font-semibold rounded-xl transition-all text-sm shadow-lg shadow-accent/20">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+            Upgrade
+          </a>
+
+          <div class="relative">
+            <button id="user-menu-btn" class="flex items-center gap-2 p-1.5 rounded-xl hover:bg-surface-800/60 transition-colors" aria-label="User menu" aria-expanded="false">
+              <div id="user-avatar" class="w-8 h-8 rounded-full bg-gradient-to-br from-accent to-accent-dark flex items-center justify-center text-white font-medium text-sm shadow-md">U</div>
+              <svg class="w-4 h-4 text-surface-400 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div id="user-dropdown" class="dropdown-menu absolute right-0 mt-2 w-56 bg-surface-900 border border-surface-800 rounded-xl shadow-2xl overflow-hidden">
+              <div class="px-4 py-3 border-b border-surface-800 bg-surface-900/50">
+                <p id="user-name" class="text-sm text-surface-200 font-medium truncate">User</p>
+                <p id="user-email" class="text-xs text-surface-500">email</p>
+                <p id="user-plan" class="text-xs text-accent mt-1">Free Plan</p>
+              </div>
+              <div class="py-1">
+                <a href="history.html" class="flex items-center gap-3 px-4 py-2.5 text-sm text-surface-300 hover:bg-surface-800 transition-colors">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  Analysis History
+                </a>
+                <a href="settings.html" class="flex items-center gap-3 px-4 py-2.5 text-sm text-surface-300 hover:bg-surface-800 transition-colors">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                  Settings
+                </a>
+                <a href="upgrade.html" id="upgrade-dropdown-btn" class="flex items-center gap-3 px-4 py-2.5 text-sm text-accent hover:bg-surface-800 transition-colors">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                  Upgrade to Premium
+                </a>
+              </div>
+              <div class="border-t border-surface-800 py-1">
+                <button id="logout-btn" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-danger hover:bg-surface-800 transition-colors">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                  Log out
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content (dark unified cards) -->
+  <main class="pt-24 pb-16 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-[900px] mx-auto space-y-6">
+
+      <!-- Plan banner -->
+      <div id="plan-banner" class="card p-4 flex items-center justify-between animate-fade-in hidden">
+        <div class="flex items-center gap-3">
+          <svg class="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <p class="text-sm text-surface-300"><span id="plan-banner-text">You have <span class="font-bold text-accent">20</span> credits this month</span></p>
+        </div>
+        <a href="upgrade.html" class="text-sm text-accent hover:underline">Upgrade</a>
+      </div>
+
+      <!-- Input card (now generic text) -->
+      <section class="card p-6 sm:p-8 animate-fade-in">
+        <h1 class="font-display text-2xl sm:text-3xl font-bold text-surface-50 mb-6">Analyze any text</h1>
+        <div class="mb-4">
+          <textarea id="conversation-input" class="input-field w-full h-48 sm:h-56 px-5 py-4 text-surface-50 placeholder-surface-500 resize-none text-base leading-relaxed" placeholder="Paste your email, message, essay, or social post here... (⌘+Enter to analyze)"></textarea>
+        </div>
+
+        <!-- Upload & Controls -->
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div class="flex flex-wrap items-center gap-3">
+            <button id="upload-btn" class="btn-secondary px-4 py-2 text-sm font-medium rounded-xl flex items-center gap-2 text-surface-300">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+              Upload Screenshot
+            </button>
+            <input type="file" id="screenshot-input" accept="image/*" class="hidden" />
+            <span id="upload-status" class="text-sm text-surface-500"></span>
+            <button id="clear-text-btn" class="text-sm text-surface-500 hover:text-surface-300 transition-colors" title="Clear text">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            </button>
+          </div>
+          <p id="char-counter" class="text-sm text-surface-400">0 / <span id="max-chars">2000</span> characters</p>
+          <button id="analyze-btn" class="btn-primary w-full sm:w-auto px-6 py-3 text-white font-semibold rounded-xl flex items-center justify-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+            <span class="btn-text">Analyze</span>
+            <svg class="btn-spinner hidden w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+          </button>
+        </div>
+      </section>
+
+      <!-- Loading -->
+      <section id="loading-section" class="hidden">
+        <div class="card p-10 text-center">
+          <div class="relative w-20 h-20 mx-auto mb-6">
+            <div class="absolute inset-0 rounded-full border-4 border-surface-700"></div>
+            <div class="absolute inset-0 rounded-full border-4 border-accent border-t-transparent animate-spin"></div>
+          </div>
+          <h3 class="font-display text-xl font-semibold text-surface-50 mb-2">Analyzing text</h3>
+          <p class="text-surface-400">Processing language patterns...</p>
+        </div>
+      </section>
+
+      <!-- Results -->
+      <section id="results-section" class="hidden space-y-6">
+        <!-- Score card -->
+        <div class="card p-6 sm:p-8 animate-slide-up">
+          <div class="flex flex-col sm:flex-row items-center gap-6 sm:gap-8">
+            <div class="relative">
+              <svg class="w-32 h-32" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="45" fill="none" stroke="#3f3a37" stroke-width="8"/>
+                <circle id="score-ring" cx="50" cy="50" r="45" fill="none" stroke="url(#scoreGradient)" stroke-width="8" stroke-linecap="round" stroke-dasharray="283" stroke-dashoffset="51" class="progress-ring__circle" />
+                <defs><linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#f97316"/><stop offset="100%" stop-color="#10b981"/></linearGradient></defs>
+              </svg>
+              <div class="absolute inset-0 flex flex-col items-center justify-center">
+                <span id="score-value" class="font-display text-4xl font-bold text-surface-50">82</span>
+                <span class="text-sm text-surface-500">/100</span>
+              </div>
+            </div>
+            <div class="text-center sm:text-left">
+              <h2 class="font-display text-2xl font-bold text-surface-50 mb-2">Clarity Score</h2>
+              <p id="interest-label" class="text-lg font-medium text-success mb-3">High Impact</p>
+              <p id="interest-description" class="text-surface-400 max-w-md">Strong indicators of clear and effective communication.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tone card -->
+        <div class="card p-6 sm:p-8 animate-slide-up">
+          <div class="flex items-start gap-4">
+            <div class="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center shrink-0">
+              <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div>
+              <h3 class="font-display text-xl font-semibold text-surface-50 mb-3">Tone Analysis</h3>
+              <p id="tone-text" class="text-surface-400 leading-relaxed"></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Red flags card (now generic issue detection) -->
+        <div id="red-flags-card" class="card p-6 sm:p-8 animate-slide-up">
+          <div class="flex items-start gap-4">
+            <div id="red-flags-icon" class="w-12 h-12 rounded-xl bg-success/20 flex items-center justify-center shrink-0">
+              <svg class="w-6 h-6 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div class="flex-1">
+              <h3 class="font-display text-xl font-semibold text-surface-50 mb-3">Issue Detection</h3>
+              <div id="red-flags-content" class="text-surface-400"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Suggested replies (still "Smart replies" but generic) -->
+        <div class="animate-slide-up">
+          <h3 class="font-display text-xl font-semibold text-surface-50 mb-4 px-1">Smart replies & rewrites</h3>
+          <div class="grid gap-4" id="replies-container"></div>
+        </div>
+
+        <!-- Share card -->
+        <div class="card p-6 sm:p-8 animate-slide-up">
+          <h3 class="font-display text-lg font-semibold text-surface-50 mb-4">Share Results</h3>
+          <div class="flex flex-wrap gap-3">
+            <button id="download-btn" class="btn-secondary flex items-center gap-2 px-4 py-2.5 rounded-xl text-surface-300 font-medium text-sm">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              Download Image
+            </button>
+            <button id="copy-results-btn" class="btn-secondary flex items-center gap-2 px-4 py-2.5 rounded-xl text-surface-300 font-medium text-sm">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+              Copy Results
+            </button>
+            <button id="share-btn" class="btn-secondary flex items-center gap-2 px-4 py-2.5 rounded-xl text-surface-300 font-medium text-sm">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
+              Share
+            </button>
+          </div>
+        </div>
+
+        <!-- New analysis button -->
+        <div class="text-center pt-4">
+          <button id="new-analysis-btn" class="inline-flex items-center gap-2 px-6 py-3 bg-surface-800 hover:bg-surface-700 text-white font-semibold rounded-xl transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            New Analysis
+          </button>
+        </div>
+      </section>
+
+      <!-- No credits banner -->
+      <section id="no-credits-banner" class="hidden">
+        <div class="card p-8 text-center">
+          <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-accent/20 flex items-center justify-center">
+            <svg class="w-8 h-8 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+          </div>
+          <h3 class="font-display text-2xl font-bold text-surface-50 mb-2">Out of Credits</h3>
+          <p class="text-surface-400 mb-6 max-w-md mx-auto">You've used all your credits for this month. Upgrade to continue analyzing.</p>
+          <a href="upgrade.html" class="btn-primary inline-flex items-center gap-2 px-8 py-3 text-white font-semibold rounded-xl shadow-lg">Upgrade Now</a>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Toast notification -->
+  <div id="toast" class="toast fixed bottom-6 right-6 z-50 px-5 py-3 bg-surface-900 text-white rounded-xl shadow-xl flex items-center gap-3 border border-surface-700">
+    <svg id="toast-icon" class="w-5 h-5 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+    <span id="toast-text">Copied</span>
+  </div>
+
+  <!-- Supabase JS SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <script>
+    // ============================================
+    // Supabase Config
+    // ============================================
+    const SUPABASE_URL = 'https://kkblbhghqcxpopmkjtbo.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrYmxiaGdocWN4cG9wbWtqdGJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNTQ5MDgsImV4cCI6MjA4ODczMDkwOH0.dkkEpQj0Dd9w7eFpmGGGfb1SBkNljXwJyX4hO5DMBFs';
+
+    const { createClient } = window.supabase;
+    const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // ============================================
+    // State
+    // ============================================
+    let state = {
+      user: null,
+      profile: null,
+      plan: null,
+      creditsRemaining: 0,
+      currentResult: null
+    };
+
+    // DOM elements
+    const conversationInput = document.getElementById('conversation-input');
+    const charCounter = document.getElementById('char-counter');
+    const maxCharsSpan = document.getElementById('max-chars');
+    const analyzeBtn = document.getElementById('analyze-btn');
+    const loadingSection = document.getElementById('loading-section');
+    const resultsSection = document.getElementById('results-section');
+    const noCreditsBanner = document.getElementById('no-credits-banner');
+    const planBanner = document.getElementById('plan-banner');
+    const creditsSpan = document.getElementById('credits-remaining');
+    const upgradeNavBtn = document.getElementById('upgrade-nav-btn');
+    const upgradeDropdownBtn = document.getElementById('upgrade-dropdown-btn');
+    const userAvatar = document.getElementById('user-avatar');
+    const userNameSpan = document.getElementById('user-name');
+    const userEmailSpan = document.getElementById('user-email');
+    const userPlanSpan = document.getElementById('user-plan');
+    const userMenuBtn = document.getElementById('user-menu-btn');
+    const userDropdown = document.getElementById('user-dropdown');
+    const logoutBtn = document.getElementById('logout-btn');
+    const toast = document.getElementById('toast');
+    const toastText = document.getElementById('toast-text');
+    const toastIcon = document.getElementById('toast-icon');
+    const planBannerText = document.getElementById('plan-banner-text');
+    const uploadBtn = document.getElementById('upload-btn');
+    const screenshotInput = document.getElementById('screenshot-input');
+    const uploadStatus = document.getElementById('upload-status');
+    const clearTextBtn = document.getElementById('clear-text-btn');
+
+    // ============================================
+    // Helpers
+    // ============================================
+    function showToast(message, type = 'success') {
+      toastText.textContent = message;
+      toastIcon.innerHTML = type === 'success' 
+        ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>'
+        : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>';
+      toastIcon.classList.toggle('text-success', type === 'success');
+      toastIcon.classList.toggle('text-danger', type === 'error');
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    function setLoading(button, isLoading) {
+      button.disabled = isLoading;
+      button.querySelector('.btn-text').classList.toggle('hidden', isLoading);
+      button.querySelector('.btn-spinner').classList.toggle('hidden', !isLoading);
+    }
+
+    // ============================================
+    // Fetch User Profile
+    // ============================================
+    async function fetchUserProfile() {
+      const { data: { user } } = await supabaseClient.auth.getUser();
+      if (!user) {
+        window.location.href = 'login.html';
+        return null;
+      }
+      state.user = user;
+
+      const { data: profile, error: profileError } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      if (profileError) console.error('Profile error:', profileError);
+
+      const { data: userPlan, error: planError } = await supabaseClient
+        .from('user_plans')
+        .select('*, plans(*)')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (planError) console.error('User plan error:', planError);
+
+      state.profile = profile || { full_name: user.email?.split('@')[0] };
+
+      const planData = userPlan?.plans || {
+        id: 'free',
+        name: 'Free',
+        credits_per_month: 20,
+        max_chars_per_analysis: 1500,
+        max_analyses_per_day: 3
+      };
+      state.plan = planData;
+      state.creditsRemaining = userPlan?.credits_remaining ?? 0;
+
+      userEmailSpan.textContent = user.email;
+      userNameSpan.textContent = state.profile.full_name || 'User';
+      userAvatar.textContent = (state.profile.full_name?.[0] || user.email?.[0] || 'U').toUpperCase();
+      userPlanSpan.textContent = `${planData.name} Plan`;
+      maxCharsSpan.textContent = planData.max_chars_per_analysis;
+      creditsSpan.textContent = state.creditsRemaining;
+
+      if (planData.id !== 'power') {
+        planBanner.classList.remove('hidden');
+        planBannerText.innerHTML = `You have <span class="font-bold text-accent">${state.creditsRemaining}</span> credits this month`;
+      } else {
+        upgradeNavBtn?.classList.add('hidden');
+        upgradeDropdownBtn?.classList.add('hidden');
+        planBanner.classList.add('hidden');
+      }
+    }
+
+    // ============================================
+    // OCR Upload
+    // ============================================
+    uploadBtn.addEventListener('click', () => screenshotInput.click());
+
+    screenshotInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      uploadStatus.textContent = 'Processing image...';
+      uploadBtn.disabled = true;
+      try {
+        const { data: { text } } = await Tesseract.recognize(file, 'eng', {
+          logger: m => { if (m.status === 'recognizing text') uploadStatus.textContent = `OCR: ${Math.round(m.progress * 100)}%`; }
+        });
+        conversationInput.value = text;
+        conversationInput.dispatchEvent(new Event('input'));
+        uploadStatus.textContent = '✓ Text extracted';
+        setTimeout(() => uploadStatus.textContent = '', 3000);
+      } catch (err) {
+        uploadStatus.textContent = 'OCR failed';
+        showToast('OCR failed. Try again.', 'error');
+      } finally {
+        uploadBtn.disabled = false;
+        screenshotInput.value = '';
+      }
+    });
+
+    // Clear text
+    clearTextBtn.addEventListener('click', () => {
+      conversationInput.value = '';
+      conversationInput.dispatchEvent(new Event('input'));
+    });
+
+    // Character counter
+    conversationInput.addEventListener('input', (e) => {
+      const len = e.target.value.length;
+      const max = parseInt(maxCharsSpan.textContent, 10);
+      charCounter.textContent = `${len} / ${max} characters`;
+      charCounter.classList.toggle('text-warning', len > max * 0.95);
+    });
+
+    // Ctrl+Enter to analyze
+    conversationInput.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        analyzeBtn.click();
+      }
+    });
+
+    // ============================================
+    // ============================================
+// Perform Analysis - Calls Edge Function
+// ============================================
+
+async function performAnalysis(conversation) {
+
+  if (state.plan.id !== 'power' && state.creditsRemaining <= 0) {
+    showToast('No credits remaining', 'error');
+    return null;
+  }
+
+  const maxChars = parseInt(maxCharsSpan.textContent, 10);
+  if (conversation.length > maxChars) {
+    showToast(`Text exceeds ${maxChars} characters`, 'error');
+    return null;
+  }
+
+  try {
+
+    // Ensure user session exists (IMPORTANT for Edge Functions)
+    const { data: { session } } = await supabaseClient.auth.getSession();
+
+    if (!session) {
+      throw new Error("User not authenticated");
+    }
+
+    // Call Edge Function
+    const { data, error } = await supabaseClient.functions.invoke(
+      'analyze-conversation',
+      {
+        body: { conversation }
+      }
+    );
+
+    if (error) throw error;
+    if (!data) throw new Error('No data returned from AI');
+
+    const analysis = {
+      score: data.score,
+      interestLevel: data.interestLevel,
+      interestColor: data.interestColor,
+      tone: data.tone,
+      redFlags: data.redFlags ?? [],
+      replies: data.replies ?? []
+    };
+
+    // Deduct credit if not power plan
+    if (state.plan.id !== 'power') {
+
+      const { error: deductError } = await supabaseClient.rpc(
+        'deduct_credit',
+        { user_id: state.user.id }
+      );
+
+      if (deductError) {
+        console.error('Credit deduction error:', deductError);
+        showToast('Failed to deduct credit', 'error');
+        return null;
+      }
+
+      state.creditsRemaining--;
+
+      creditsSpan.textContent = state.creditsRemaining;
+
+      planBannerText.innerHTML =
+        `You have <span class="font-bold text-accent">${state.creditsRemaining}</span> credits this month`;
+    }
+
+    // Save analysis
+    const { error: insertError } = await supabaseClient
+      .from('analyses')
+      .insert({
+        user_id: state.user.id,
+        conversation,
+        score: analysis.score,
+        tone: analysis.tone,
+        red_flags: analysis.redFlags,
+        suggested_replies: analysis.replies
+      });
+
+    if (insertError) {
+      console.error('Save error:', insertError);
+    }
+
+    return analysis;
+
+  } catch (err) {
+
+    console.error('Analysis failed:', err);
+
+    showToast(
+      err.message || 'Analysis failed. Please try again.',
+      'error'
+    );
+
+    return null;
+  }
+}
+
+    // ============================================
+    // Render Results
+    // ============================================
+    function renderResults(analysis) {
+      state.currentResult = analysis;
+      document.getElementById('score-value').textContent = analysis.score;
+      const ring = document.getElementById('score-ring');
+      const radius = 45;
+      const circumference = 2 * Math.PI * radius;
+      const offset = circumference - (analysis.score / 100) * circumference;
+      ring.style.strokeDasharray = `${circumference}`;
+      ring.style.strokeDashoffset = offset;
+
+      document.getElementById('interest-label').textContent = analysis.interestLevel;
+      document.getElementById('interest-label').className = `text-lg font-medium ${analysis.interestColor}`;
+      document.getElementById('interest-description').textContent = 'Based on message patterns and engagement.';
+      document.getElementById('tone-text').textContent = analysis.tone;
+
+      const redFlagsContent = document.getElementById('red-flags-content');
+      const redFlagsIcon = document.getElementById('red-flags-icon');
+      if (analysis.redFlags.length === 0) {
+        redFlagsContent.innerHTML = '<p class="text-success font-medium">No issues detected</p><p class="text-surface-400 mt-1">Text appears clear and well-intentioned.</p>';
+        redFlagsIcon.className = 'w-12 h-12 rounded-xl bg-success/20 flex items-center justify-center shrink-0';
+        redFlagsIcon.innerHTML = '<svg class="w-6 h-6 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
+      } else {
+        redFlagsContent.innerHTML = `<ul class="space-y-2">${analysis.redFlags.map(f => `<li class="flex items-start gap-2"><svg class="w-5 h-5 text-warning shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><span class="text-surface-400">${f}</span></li>`).join('')}</ul>`;
+        redFlagsIcon.className = 'w-12 h-12 rounded-xl bg-warning/20 flex items-center justify-center shrink-0';
+        redFlagsIcon.innerHTML = '<svg class="w-6 h-6 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>';
+      }
+
+      const repliesContainer = document.getElementById('replies-container');
+      repliesContainer.innerHTML = analysis.replies.map((r, i) => `
+        <div class="reply-card p-5 sm:p-6">
+          <div class="flex items-start justify-between gap-4 mb-3">
+            <h4 class="font-display font-semibold text-surface-50">${r.type}</h4>
+            <span class="px-2.5 py-1 bg-accent/20 text-accent-light text-xs font-medium rounded-full">Option ${i+1}</span>
+          </div>
+          <p class="text-surface-300 text-lg mb-4 leading-relaxed">"${r.text}"</p>
+          <div class="flex items-start gap-2 mb-4 p-3 bg-surface-800/60 rounded-lg">
+            <svg class="w-4 h-4 text-accent shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <p class="text-sm text-surface-400"><strong class="text-surface-300">Why it works:</strong> ${r.why}</p>
+          </div>
+          <div class="flex gap-2">
+            <button class="copy-reply-btn flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-surface-800 hover:bg-surface-700 text-white font-medium rounded-lg transition-colors text-sm" data-reply="${r.text}">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+              Copy
+            </button>
+            <button class="insert-reply-btn flex items-center justify-center gap-2 px-4 py-2 border border-surface-700 hover:border-accent text-surface-300 font-medium rounded-lg transition-colors text-sm" data-reply="${r.text}">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+              Insert
+            </button>
+          </div>
+        </div>
+      `).join('');
+
+      document.querySelectorAll('.copy-reply-btn').forEach(btn => {
+        btn.addEventListener('click', () => { navigator.clipboard.writeText(btn.dataset.reply); showToast('Reply copied'); });
+      });
+      document.querySelectorAll('.insert-reply-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          conversationInput.value = btn.dataset.reply;
+          conversationInput.dispatchEvent(new Event('input'));
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          showToast('Reply inserted');
+        });
+      });
+    }
+
+    // ============================================
+    // Event Listeners
+    // ============================================
+    analyzeBtn.addEventListener('click', async () => {
+      const conv = conversationInput.value.trim();
+      if (!conv) { showToast('Please enter text', 'error'); return; }
+      // Removed the minimum length check – any text is now allowed
+
+      setLoading(analyzeBtn, true);
+      loadingSection.classList.remove('hidden');
+      resultsSection.classList.add('hidden');
+      noCreditsBanner.classList.add('hidden');
+
+      const analysis = await performAnalysis(conv);
+
+      setLoading(analyzeBtn, false);
+      loadingSection.classList.add('hidden');
+
+      if (analysis) {
+        renderResults(analysis);
+        resultsSection.classList.remove('hidden');
+        resultsSection.scrollIntoView({ behavior: 'smooth' });
+      } else {
+        if (state.creditsRemaining <= 0 && state.plan.id !== 'power') {
+          noCreditsBanner.classList.remove('hidden');
+        }
+      }
+    });
+
+    document.getElementById('new-analysis-btn').addEventListener('click', () => {
+      conversationInput.value = '';
+      conversationInput.dispatchEvent(new Event('input'));
+      resultsSection.classList.add('hidden');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    document.getElementById('copy-results-btn').addEventListener('click', () => {
+      if (!state.currentResult) return;
+      const text = `Clarity Score: ${state.currentResult.score}/100 (${state.currentResult.interestLevel})
+Tone: ${state.currentResult.tone}
+Issues: ${state.currentResult.redFlags.length ? state.currentResult.redFlags.join(', ') : 'None'}`;
+      navigator.clipboard.writeText(text);
+      showToast('Results copied');
+    });
+
+    // Logout
+    logoutBtn.addEventListener('click', async () => {
+      await supabaseClient.auth.signOut();
+      window.location.href = 'login.html';
+    });
+
+    // Dropdown
+    userMenuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      userDropdown.classList.toggle('open');
+      userMenuBtn.setAttribute('aria-expanded', userDropdown.classList.contains('open'));
+    });
+    document.addEventListener('click', (e) => {
+      if (!userDropdown.contains(e.target) && !userMenuBtn.contains(e.target)) {
+        userDropdown.classList.remove('open');
+        userMenuBtn.setAttribute('aria-expanded', 'false');
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && userDropdown.classList.contains('open')) {
+        userDropdown.classList.remove('open');
+        userMenuBtn.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    // ============================================
+    // Initialize
+    // ============================================
+    (async function init() {
+      await fetchUserProfile();
+      if (!state.user) window.location.href = 'login.html';
+    })();
+  </script>
+</body>
+</html>

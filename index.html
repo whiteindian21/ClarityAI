@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TextCoach – Analyze any text + smart replies</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['Space Grotesk', 'sans-serif'],
+            body: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            surface: {
+              50: '#fafaf9', 100: '#f5f5f4', 200: '#e7e5e4', 300: '#d6d3d1',
+              400: '#a8a29e', 500: '#78716c', 600: '#57534e', 700: '#44403c',
+              800: '#292524', 900: '#1c1917', 950: '#0c0a09',
+            },
+            accent: { DEFAULT: '#f97316', light: '#fb923c', dark: '#ea580c', muted: '#fed7aa' },
+            success: '#10b981', warning: '#f59e0b', danger: '#ef4444',
+          },
+        },
+      },
+    }
+  </script>
+  <style>
+    :root {
+      --bg: #0c0a09; --bg-elevated: #1c1917; --fg: #fafaf9; --fg-muted: #a8a29e;
+      --accent: #f97316; --accent-light: #fb923c; --border: #292524; --card: rgba(28, 25, 23, 0.6);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', sans-serif; background: var(--bg); color: var(--fg);
+      overflow-x: hidden; -webkit-font-smoothing: antialiased;
+    }
+    .font-display { font-family: 'Space Grotesk', sans-serif; }
+    .bg-mesh {
+      position: fixed; inset: 0; z-index: -1;
+      background: radial-gradient(ellipse 80% 50% at 20% -20%, rgba(249,115,22,0.15), transparent),
+                  radial-gradient(ellipse 60% 40% at 80% 110%, rgba(249,115,22,0.08), transparent),
+                  radial-gradient(circle at 50% 50%, #0c0a09, #0c0a09);
+    }
+    .noise-overlay {
+      position: fixed; inset: 0; z-index: -1; opacity: 0.04;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    }
+    .text-gradient {
+      background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .reveal {
+      opacity: 0; transform: translateY(20px);
+      transition: opacity 0.8s cubic-bezier(0.16,1,0.3,1), transform 0.8s cubic-bezier(0.16,1,0.3,1);
+    }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+    .reveal-delay-1 { transition-delay: 0.1s; }
+    .reveal-delay-2 { transition-delay: 0.2s; }
+    .reveal-delay-3 { transition-delay: 0.3s; }
+    .reveal-delay-4 { transition-delay: 0.4s; }
+    @keyframes float { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-10px);} }
+    .float-animation { animation: float 6s ease-in-out infinite; }
+    .btn-primary {
+      position: relative; overflow: hidden; transition: all 0.3s ease;
+      background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+    }
+    .btn-primary::before {
+      content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+      transition: 0.5s;
+    }
+    .btn-primary:hover::before { left: 100%; }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 15px 30px -10px rgba(249,115,22,0.5); }
+    .glass-card {
+      background: rgba(28, 25, 23, 0.6); backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .pricing-highlight {
+      position: relative;
+      background: linear-gradient(180deg, rgba(249, 115, 22, 0.1) 0%, rgba(28, 25, 23, 0.6) 100%);
+      border: 1px solid rgba(249, 115, 22, 0.3);
+    }
+    .pricing-highlight::before {
+      content: ''; position: absolute; inset: -1px; border-radius: inherit; padding: 1px;
+      background: linear-gradient(135deg, rgba(249, 115, 22, 0.5), transparent 60%);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor; mask-composite: exclude;
+    }
+    .score-ring { animation: score-fill 1.5s cubic-bezier(0.16,1,0.3,1) forwards; animation-delay: 0.5s; }
+    @keyframes score-fill { from { stroke-dashoffset: 283; } }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    @media (prefers-reduced-motion: reduce) {
+      *,*::before,*::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+  <div class="bg-mesh"></div>
+  <div class="noise-overlay"></div>
+
+  <!-- Navbar -->
+  <nav class="fixed top-0 left-0 right-0 z-50 border-b border-white/5 backdrop-blur-xl bg-surface-950/80">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16 lg:h-20">
+        <a href="/" class="flex items-center gap-3 group" aria-label="TextCoach Home">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-accent to-accent-dark flex items-center justify-center transition-transform group-hover:scale-110 shadow-lg shadow-accent/20">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+            </svg>
+          </div>
+          <span class="font-display font-bold text-lg text-surface-50 hidden sm:block tracking-tight">TextCoach</span>
+        </a>
+        <div class="hidden lg:flex items-center gap-8">
+          <a href="#features" class="text-sm text-surface-300 hover:text-surface-50 transition-colors font-medium">Features</a>
+          <a href="#how-it-works" class="text-sm text-surface-300 hover:text-surface-50 transition-colors font-medium">How it Works</a>
+          <a href="#pricing" class="text-sm text-surface-300 hover:text-surface-50 transition-colors font-medium">Pricing</a>
+        </div>
+        <div class="hidden lg:flex items-center gap-4">
+          <a href="login.html" class="text-sm text-surface-200 hover:text-white transition-colors font-medium">Login</a>
+          <a href="login.html" class="btn-primary px-5 py-2.5 text-white text-sm font-semibold rounded-xl">Analyze Free</a>
+        </div>
+        <button id="mobile-menu-btn" class="lg:hidden p-2 text-surface-300 hover:text-surface-50" aria-label="Toggle menu" aria-expanded="false">
+          <svg class="w-6 h-6 menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+          <svg class="w-6 h-6 close-icon hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+    <div id="mobile-menu" class="fixed inset-y-0 right-0 w-full max-w-sm bg-surface-900 border-l border-surface-800 transform translate-x-full transition-transform duration-300 ease-in-out lg:hidden">
+      <div class="flex flex-col h-full pt-20 pb-6 px-6">
+        <nav class="flex-1 space-y-2">
+          <a href="#features" class="block px-4 py-3 text-surface-200 hover:bg-surface-800 rounded-xl transition-colors">Features</a>
+          <a href="#how-it-works" class="block px-4 py-3 text-surface-200 hover:bg-surface-800 rounded-xl transition-colors">How it Works</a>
+          <a href="#pricing" class="block px-4 py-3 text-surface-200 hover:bg-surface-800 rounded-xl transition-colors">Pricing</a>
+        </nav>
+        <div class="space-y-3 pt-6 border-t border-surface-800">
+          <a href="login.html" class="block w-full px-5 py-3 text-center text-surface-200 border border-surface-700 rounded-xl font-medium hover:bg-surface-800 transition-colors">Login</a>
+          <a href="login.html" class="block w-full px-5 py-3 text-center bg-accent hover:bg-accent-light text-white font-semibold rounded-xl transition-colors">Analyze Free</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section (refocused for any text) -->
+  <section class="relative pt-32 pb-20 lg:pt-44 lg:pb-32 overflow-hidden">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+        <div class="text-center lg:text-left">
+          <div class="reveal inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 mb-8">
+            <span class="w-2 h-2 rounded-full bg-success animate-pulse"></span>
+            <span class="text-xs text-accent font-semibold tracking-wide">AI-POWERED TEXT ANALYSIS</span>
+          </div>
+          <h1 class="reveal reveal-delay-1 font-display text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tighter leading-[1.05] mb-6">
+            Decode any text.<br>
+            <span class="text-gradient">Reply with confidence.</span>
+          </h1>
+          <p class="reveal reveal-delay-2 text-lg text-surface-400 max-w-lg mx-auto lg:mx-0 mb-10 leading-relaxed">
+            Paste emails, essays, DMs, or social posts. Get instant AI analysis — tone, clarity, subtext — plus smart reply drafts that sound like you.
+          </p>
+          <div class="reveal reveal-delay-3 flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+            <a href="login.html" class="btn-primary inline-flex items-center justify-center gap-2 px-8 py-4 text-white font-semibold rounded-xl text-base shadow-xl shadow-accent/10">
+              Analyze a text — free
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+            </a>
+            <button id="see-example-btn" class="group inline-flex items-center justify-center gap-2 px-8 py-4 border border-surface-700 hover:border-surface-500 text-surface-200 font-semibold rounded-xl text-base transition-colors bg-surface-900/30 hover:bg-surface-800/30">
+              <svg class="w-5 h-5 text-surface-400 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+              See example analysis
+            </button>
+          </div>
+        </div>
+        
+        <!-- Hero Visual (updated to generic) -->
+        <div class="reveal reveal-delay-2 relative float-animation">
+          <div class="absolute -inset-4 bg-gradient-to-r from-accent/10 via-transparent to-accent/5 rounded-3xl blur-2xl"></div>
+          <div class="relative glass-card rounded-2xl overflow-hidden shadow-2xl border-white/10">
+            <div class="px-6 py-4 border-b border-white/5 flex items-center justify-between bg-surface-900/50">
+              <div class="flex items-center gap-2">
+                <div class="w-3 h-3 rounded-full bg-danger/80"></div>
+                <div class="w-3 h-3 rounded-full bg-warning/80"></div>
+                <div class="w-3 h-3 rounded-full bg-success/80"></div>
+              </div>
+              <span class="text-xs text-surface-500 font-medium tracking-wider">ANALYSIS RESULT</span>
+            </div>
+            <div class="p-6 space-y-5">
+              <div class="flex items-center gap-6 p-4 bg-surface-800/30 rounded-xl">
+                <div class="relative w-20 h-20 shrink-0">
+                  <svg class="w-20 h-20 transform -rotate-90" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="45" fill="none" stroke="#292524" stroke-width="8"/>
+                    <circle class="score-ring" cx="50" cy="50" r="45" fill="none" stroke="#10b981" stroke-width="8" stroke-linecap="round" stroke-dasharray="283" stroke-dashoffset="62"/>
+                  </svg>
+                  <div class="absolute inset-0 flex items-center justify-center flex-col">
+                    <span class="font-display text-2xl font-bold text-white">85</span>
+                  </div>
+                </div>
+                <div>
+                  <p class="text-surface-500 text-xs mb-1 uppercase tracking-wider">Clarity Score</p>
+                  <p class="font-display text-xl font-semibold text-success">High impact</p>
+                </div>
+              </div>
+              <div class="space-y-3">
+                <div class="flex items-start gap-3 p-3 rounded-xl bg-surface-800/20 border border-white/5">
+                  <div class="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  </div>
+                  <div>
+                    <p class="font-medium text-surface-100 text-sm">Tone analysis</p>
+                    <p class="text-surface-400 text-xs mt-0.5">Professional, polite, slightly apologetic.</p>
+                  </div>
+                </div>
+                <div class="p-3 rounded-xl bg-surface-800/20 border border-white/5">
+                  <div class="flex items-center gap-2 mb-2">
+                    <div class="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
+                      <svg class="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                    </div>
+                    <p class="font-medium text-surface-100 text-sm">Smart rewrites</p>
+                  </div>
+                  <div class="space-y-1.5">
+                    <button class="w-full text-left px-3 py-2 rounded-lg bg-surface-900/50 text-surface-200 text-xs transition-colors hover:bg-surface-900 border border-transparent hover:border-surface-700">
+                      <span class="text-accent font-semibold">Concise:</span> "Requesting 3-day extension due to family obligations. Most research done."
+                    </button>
+                    <button class="w-full text-left px-3 py-2 rounded-lg bg-surface-900/50 text-surface-200 text-xs transition-colors hover:bg-surface-900 border border-transparent hover:border-surface-700">
+                      <span class="text-accent font-semibold">Assertive:</span> "I need a 3‑day extension. I'll submit by Friday."
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features (retuned for generic text) -->
+  <section id="features" class="py-20 lg:py-32">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <h2 class="reveal font-display text-4xl sm:text-5xl font-bold tracking-tighter mb-5">
+          See through <span class="text-gradient">any text</span>
+        </h2>
+        <p class="reveal reveal-delay-1 text-lg text-surface-400 max-w-xl mx-auto">
+          Deep analysis powered by advanced AI — for emails, essays, messages, and more.
+        </p>
+      </div>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div class="reveal reveal-delay-1 glass-card rounded-2xl p-6 hover:border-accent/20 transition-colors duration-300">
+          <div class="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center mb-5">
+            <svg class="w-6 h-6 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+          </div>
+          <h3 class="font-display text-lg font-semibold text-surface-50 mb-2">Clarity score</h3>
+          <p class="text-surface-400 text-sm leading-relaxed">Measure readability, intent, and impact — from formal docs to casual chats.</p>
+        </div>
+        <div class="reveal reveal-delay-2 glass-card rounded-2xl p-6 hover:border-accent/20 transition-colors duration-300">
+          <div class="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center mb-5">
+            <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+          </div>
+          <h3 class="font-display text-lg font-semibold text-surface-50 mb-2">Tone & emotion</h3>
+          <p class="text-surface-400 text-sm leading-relaxed">Understand subtext: urgency, hesitation, enthusiasm, or formality.</p>
+        </div>
+        <div class="reveal reveal-delay-3 glass-card rounded-2xl p-6 hover:border-accent/20 transition-colors duration-300">
+          <div class="w-12 h-12 rounded-xl bg-danger/10 flex items-center justify-center mb-5">
+            <svg class="w-6 h-6 text-danger" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+          </div>
+          <h3 class="font-display text-lg font-semibold text-surface-50 mb-2">Issue detection</h3>
+          <p class="text-surface-400 text-sm leading-relaxed">Spot vague language, mixed signals, or unintended aggression.</p>
+        </div>
+        <div class="reveal reveal-delay-4 glass-card rounded-2xl p-6 hover:border-accent/20 transition-colors duration-300">
+          <div class="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center mb-5">
+            <svg class="w-6 h-6 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+          </div>
+          <h3 class="font-display text-lg font-semibold text-surface-50 mb-2">Smart replies</h3>
+          <p class="text-surface-400 text-sm leading-relaxed">Generate context‑aware drafts or rewrites that match your voice.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works (step labels updated) -->
+  <section id="how-it-works" class="py-20 lg:py-32 relative">
+    <div class="absolute inset-0 bg-gradient-to-b from-transparent via-surface-900/50 to-transparent pointer-events-none"></div>
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+      <div class="text-center max-w-3xl mx-auto mb-20">
+        <h2 class="reveal font-display text-4xl sm:text-5xl font-bold tracking-tighter mb-5">
+          Three clicks, <span class="text-gradient">deep insight</span>
+        </h2>
+      </div>
+      <div class="grid md:grid-cols-3 gap-8 lg:gap-16">
+        <div class="reveal reveal-delay-1 text-center">
+          <div class="w-16 h-16 mx-auto mb-6 rounded-2xl bg-surface-800 border border-surface-700 flex items-center justify-center shadow-lg relative">
+            <span class="font-display text-2xl font-bold text-accent">1</span>
+            <div class="absolute -inset-2 bg-accent/10 blur-xl rounded-full"></div>
+          </div>
+          <h3 class="font-display text-xl font-semibold text-surface-50 mb-3">Paste your text</h3>
+          <p class="text-surface-400 text-sm leading-relaxed">Email, essay, DM, tweet — our AI handles any format.</p>
+        </div>
+        <div class="reveal reveal-delay-2 text-center">
+          <div class="w-16 h-16 mx-auto mb-6 rounded-2xl bg-surface-800 border border-surface-700 flex items-center justify-center shadow-lg relative">
+            <span class="font-display text-2xl font-bold text-accent">2</span>
+            <div class="absolute -inset-2 bg-accent/10 blur-xl rounded-full"></div>
+          </div>
+          <h3 class="font-display text-xl font-semibold text-surface-50 mb-3">Analyze</h3>
+          <p class="text-surface-400 text-sm leading-relaxed">Models evaluate tone, clarity, and psychology in seconds.</p>
+        </div>
+        <div class="reveal reveal-delay-3 text-center">
+          <div class="w-16 h-16 mx-auto mb-6 rounded-2xl bg-surface-800 border border-surface-700 flex items-center justify-center shadow-lg relative">
+            <span class="font-display text-2xl font-bold text-accent">3</span>
+            <div class="absolute -inset-2 bg-accent/10 blur-xl rounded-full"></div>
+          </div>
+          <h3 class="font-display text-xl font-semibold text-surface-50 mb-3">Get results</h3>
+          <p class="text-surface-400 text-sm leading-relaxed">Receive scores, insights, and reply drafts tailored to your goal.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Example Section (now with a generic text + analysis) -->
+  <section id="example" class="py-20 lg:py-32">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <h2 class="reveal font-display text-4xl sm:text-5xl font-bold tracking-tighter mb-5">
+          See it <span class="text-gradient">in action</span>
+        </h2>
+      </div>
+      <div class="reveal reveal-delay-1 grid lg:grid-cols-2 gap-6">
+        <!-- Text Panel (formerly conversation) -->
+        <div class="glass-card rounded-2xl overflow-hidden h-[480px] flex flex-col">
+          <div class="px-5 py-4 border-b border-white/5 flex items-center gap-3 bg-surface-900/50">
+            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-accent to-accent-dark flex items-center justify-center text-white text-xs font-bold">📄</div>
+            <div>
+              <p class="font-semibold text-surface-100 text-sm">Your text (email draft)</p>
+              <p class="text-[10px] text-surface-500 uppercase tracking-wider">work / professional</p>
+            </div>
+          </div>
+          <div class="flex-1 overflow-y-auto p-5" id="conversation-messages">
+            <!-- dynamically filled by JS, but we'll also have a fallback -->
+          </div>
+        </div>
+        <!-- Analysis Panel (dynamic) -->
+        <div class="glass-card rounded-2xl overflow-hidden h-[480px] flex flex-col">
+          <div class="px-5 py-4 border-b border-white/5 bg-surface-900/50">
+            <p class="font-semibold text-surface-100 text-sm">AI Analysis</p>
+          </div>
+          <div class="flex-1 overflow-y-auto p-5 space-y-4" id="analysis-results"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Social Proof (minor copy tweaks) -->
+  <section class="py-20 lg:py-32">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="reveal text-center mb-16">
+        <p class="text-accent font-semibold text-sm tracking-wider uppercase mb-4">Trusted by 50,000+ users</p>
+        <h2 class="font-display text-4xl sm:text-5xl font-bold tracking-tighter">
+          Real results, <span class="text-gradient">everyday texts</span>
+        </h2>
+      </div>
+      <div class="grid md:grid-cols-3 gap-6 mb-16">
+        <div class="reveal reveal-delay-1 glass-card rounded-2xl p-6">
+          <div class="flex gap-1 mb-4">★★★★★</div>
+          <p class="text-surface-200 text-sm leading-relaxed mb-5">"I used it on an important email to my professor — the tone feedback saved me from sounding too pushy."</p>
+          <p class="text-surface-500 text-xs font-medium">— Michelle R.</p>
+        </div>
+        <div class="reveal reveal-delay-2 glass-card rounded-2xl p-6">
+          <div class="flex gap-1 mb-4">★★★★★</div>
+          <p class="text-surface-200 text-sm leading-relaxed mb-5">"The suggested rewrites are scary good. It's like having an editor in my pocket."</p>
+          <p class="text-surface-500 text-xs font-medium">— Jason T.</p>
+        </div>
+        <div class="reveal reveal-delay-3 glass-card rounded-2xl p-6">
+          <div class="flex gap-1 mb-4">★★★★★</div>
+          <p class="text-surface-200 text-sm leading-relaxed mb-5">"I analyze all my social posts before publishing. Better engagement every time."</p>
+          <p class="text-surface-500 text-xs font-medium">— Ashley K.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing (unchanged except maybe 'conversation' to 'text') -->
+  <section id="pricing" class="py-20 lg:py-32">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <h2 class="reveal font-display text-4xl sm:text-5xl font-bold tracking-tighter mb-5">
+          Simple <span class="text-gradient">pricing</span>
+        </h2>
+        <p class="reveal reveal-delay-1 text-surface-400 max-w-xl mx-auto">
+          Start free. Upgrade when you need deeper insights.
+        </p>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 items-start">
+        <!-- Free -->
+        <div class="reveal reveal-delay-1 glass-card rounded-2xl p-6 flex flex-col h-full">
+          <h3 class="font-display text-lg font-semibold text-surface-50 mb-1">Free</h3>
+          <p class="text-xs text-surface-500 mb-5">20 analyses / month</p>
+          <div class="mb-5"><span class="font-display text-3xl font-bold text-surface-50">$0</span><span class="text-surface-500 text-sm">/month</span></div>
+          <ul class="space-y-2 mb-8 flex-1 text-sm">
+            <li class="flex items-center gap-2 text-surface-300"><svg class="w-4 h-4 text-success shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Clarity score</li>
+            <li class="flex items-center gap-2 text-surface-300"><svg class="w-4 h-4 text-success shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Basic tone</li>
+            <li class="flex items-center gap-2 text-surface-300"><svg class="w-4 h-4 text-success shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> 3 reply drafts</li>
+          </ul>
+          <a href="login.html" class="block w-full text-center px-4 py-2.5 border border-surface-700 hover:border-surface-500 text-surface-200 font-semibold rounded-xl transition-colors text-sm">Get Started</a>
+        </div>
+        <!-- Starter -->
+        <div class="reveal reveal-delay-2 glass-card rounded-2xl p-6 flex flex-col h-full">
+          <h3 class="font-display text-lg font-semibold text-surface-50 mb-1">Starter</h3>
+          <p class="text-xs text-surface-500 mb-5">150 analyses / month</p>
+          <div class="mb-5"><span class="font-display text-3xl font-bold text-surface-50">$5</span><span class="text-surface-500 text-sm">/month</span></div>
+          <ul class="space-y-2 mb-8 flex-1 text-sm">
+            <li class="flex items-center gap-2 text-surface-300"><svg class="w-4 h-4 text-success shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Full analysis</li>
+            <li class="flex items-center gap-2 text-surface-300"><svg class="w-4 h-4 text-success shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Issue detection</li>
+            <li class="flex items-center gap-2 text-surface-300"><svg class="w-4 h-4 text-success shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> History saved</li>
+          </ul>
+          <a href="login.html" class="block w-full text-center px-4 py-2.5 border border-surface-700 hover:border-surface-500 text-surface-200 font-semibold rounded-xl transition-colors text-sm">Start Free Trial</a>
+        </div>
+        <!-- Pro (popular) -->
+        <div class="reveal reveal-delay-3 pricing-highlight rounded-2xl p-6 flex flex-col h-full relative">
+          <span class="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-accent text-white text-[10px] font-bold rounded-full uppercase tracking-wider">Most Popular</span>
+          <h3 class="font-display text-lg font-semibold text-surface-50 mb-1">Pro</h3>
+          <p class="text-xs text-surface-500 mb-5">500 analyses / month</p>
+          <div class="mb-5"><span class="font-display text-3xl font-bold text-surface-50">$10</span><span class="text-surface-500 text-sm">/month</span></div>
+          <ul class="space-y-2 mb-8 flex-1 text-sm">
+            <li class="flex items-center gap-2 text-surface-200"><svg class="w-4 h-4 text-accent shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Everything in Starter</li>
+            <li class="flex items-center gap-2 text-surface-200"><svg class="w-4 h-4 text-accent shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Shareable reports</li>
+            <li class="flex items-center gap-2 text-surface-200"><svg class="w-4 h-4 text-accent shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Advanced insights</li>
+          </ul>
+          <a href="login.html" class="btn-primary block w-full text-center px-4 py-2.5 text-white font-semibold rounded-xl text-sm">Start Free Trial</a>
+        </div>
+        <!-- Power -->
+        <div class="reveal reveal-delay-4 glass-card rounded-2xl p-6 flex flex-col h-full">
+          <h3 class="font-display text-lg font-semibold text-surface-50 mb-1">Power</h3>
+          <p class="text-xs text-surface-500 mb-5">Unlimited* (50/day)</p>
+          <div class="mb-5"><span class="font-display text-3xl font-bold text-surface-50">$20</span><span class="text-surface-500 text-sm">/month</span></div>
+          <ul class="space-y-2 mb-8 flex-1 text-sm">
+            <li class="flex items-center gap-2 text-surface-300"><svg class="w-4 h-4 text-success shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Everything in Pro</li>
+            <li class="flex items-center gap-2 text-surface-300"><svg class="w-4 h-4 text-success shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Priority processing</li>
+            <li class="flex items-center gap-2 text-surface-300"><svg class="w-4 h-4 text-success shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> API access</li>
+          </ul>
+          <a href="login.html" class="block w-full text-center px-4 py-2.5 border border-surface-700 hover:border-surface-500 text-surface-200 font-semibold rounded-xl transition-colors text-sm">Get Started</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Final CTA -->
+  <section class="py-20 lg:py-32">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <div class="reveal relative">
+        <div class="absolute inset-0 bg-gradient-to-r from-accent/20 via-accent/5 to-accent/20 rounded-3xl blur-3xl opacity-50"></div>
+        <div class="relative glass-card rounded-3xl p-10 lg:p-16 border-t border-white/10">
+          <h2 class="font-display text-4xl sm:text-5xl font-bold tracking-tighter mb-5">
+            Stop guessing. <span class="text-gradient">Start writing</span>
+          </h2>
+          <p class="text-surface-400 max-w-lg mx-auto mb-8">
+            Get instant AI clarity on any text — before you hit send.
+          </p>
+          <a href="login.html" class="btn-primary inline-flex items-center justify-center gap-2 px-8 py-4 text-white font-semibold rounded-xl text-base shadow-xl shadow-accent/10">
+            Analyze your first text
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+          </a>
+          <p class="mt-4 text-xs text-surface-500">No credit card required. Start in 30 seconds.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer (unchanged) -->
+  <footer class="border-t border-white/5 py-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex flex-col md:flex-row items-center justify-between gap-6">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-accent to-accent-dark flex items-center justify-center">
+            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+          </div>
+          <span class="font-display font-semibold text-surface-50 text-sm">TextCoach</span>
+        </div>
+        <p class="text-surface-500 text-xs">© 2025 TextCoach. All rights reserved.</p>
+        <div class="flex items-center gap-4 text-surface-500">
+           <a href="#" class="hover:text-white transition-colors" aria-label="Twitter"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
+           <a href="#" class="hover:text-white transition-colors" aria-label="TikTok"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z"/></svg></a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function() {
+      // Updated data for generic text (email draft)
+      const conversationData = [
+        { sender: 'you', message: 'Subject: Request for Extension on Final Paper\n\nDear Professor Smith,\n\nI hope this email finds you well. I am writing to respectfully request a 3-day extension on the final paper due to unexpected family obligations. I have completed most of the research but need additional time to synthesize my findings. I apologize for any inconvenience and would appreciate your consideration.\n\nBest regards,\nAlex Johnson', time: '10:15 AM' }
+      ];
+
+      const analysisData = {
+        score: 85,
+        scoreLabel: 'Clarity Score',
+        tone: 'Professional, polite, and apologetic. Clearly states the request and reason.',
+        redFlags: [],
+        positiveSignals: [
+          'Clear subject line',
+          'Respectful tone',
+          'Specific request',
+          'Apology for inconvenience'
+        ],
+        suggestions: [
+          { type: 'Concise', text: 'Requesting a 3-day extension due to family obligations. Most research done; need time to synthesize. Thanks for understanding.' },
+          { type: 'Assertive', text: 'I need a 3-day extension on the final paper. I have most of the research done and will submit by Friday.' },
+          { type: 'Warm', text: 'Hi Professor, would it be possible to get three more days for the paper? Family stuff came up, but I\'m nearly done. Thanks!' }
+        ]
+      };
+
+      let mobileMenuBtn, mobileMenu, menuIcon, closeIcon, conversationContainer, analysisContainer;
+
+      function init() {
+        mobileMenuBtn = document.getElementById('mobile-menu-btn');
+        mobileMenu = document.getElementById('mobile-menu');
+        menuIcon = document.querySelector('.menu-icon');
+        closeIcon = document.querySelector('.close-icon');
+        conversationContainer = document.getElementById('conversation-messages');
+        analysisContainer = document.getElementById('analysis-results');
+
+        if (mobileMenuBtn) {
+          mobileMenuBtn.addEventListener('click', toggleMobileMenu);
+        }
+
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape' && mobileMenu && mobileMenu.classList.contains('translate-x-0')) {
+            toggleMobileMenu();
+          }
+        });
+
+        const observer = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('visible');
+            }
+          });
+        }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+        document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+          anchor.addEventListener('click', function(e) {
+            e.preventDefault();
+            const target = document.querySelector(this.getAttribute('href'));
+            if (target) {
+              target.scrollIntoView({ behavior: 'smooth' });
+              if (mobileMenu && mobileMenu.classList.contains('translate-x-0')) toggleMobileMenu();
+            }
+          });
+        });
+
+        const seeExampleBtn = document.getElementById('see-example-btn');
+        if (seeExampleBtn) {
+          seeExampleBtn.addEventListener('click', () => {
+            const exampleSection = document.getElementById('example');
+            if (exampleSection) exampleSection.scrollIntoView({ behavior: 'smooth' });
+          });
+        }
+
+        if (conversationContainer) renderConversation();
+        if (analysisContainer) renderAnalysis();
+      }
+
+      function toggleMobileMenu() {
+        if (!mobileMenu || !menuIcon || !closeIcon) return;
+        const isOpen = mobileMenu.classList.contains('translate-x-0');
+        if (isOpen) {
+            mobileMenu.classList.remove('translate-x-0');
+            mobileMenu.classList.add('translate-x-full');
+        } else {
+            mobileMenu.classList.add('translate-x-0');
+            mobileMenu.classList.remove('translate-x-full');
+        }
+        menuIcon.classList.toggle('hidden');
+        closeIcon.classList.toggle('hidden');
+        mobileMenuBtn.setAttribute('aria-expanded', String(!isOpen));
+      }
+
+      function renderConversation() {
+        conversationContainer.innerHTML = '';
+        conversationData.forEach((msg) => {
+          const el = document.createElement('div');
+          el.className = `flex ${msg.sender === 'you' ? 'justify-end' : 'justify-start'}`;
+          const bubbleClass = msg.sender === 'you' 
+            ? 'bg-accent text-white rounded-2xl rounded-br-md' 
+            : 'bg-surface-800 border border-white/5 text-surface-100 rounded-2xl rounded-bl-md';
+          // preserve line breaks for email
+          const formattedMessage = msg.message.replace(/\n/g, '<br>');
+          el.innerHTML = `
+            <div class="max-w-[95%] ${bubbleClass} px-4 py-2.5 shadow-sm">
+              ${msg.sender === 'them' ? `<p class="text-[10px] text-accent font-semibold mb-1 uppercase tracking-wider">${msg.name}</p>` : ''}
+              <p class="text-sm whitespace-pre-wrap">${formattedMessage}</p>
+              <p class="text-[10px] ${msg.sender === 'you' ? 'text-white/60' : 'text-surface-500'} mt-1 text-right">${msg.time}</p>
+            </div>
+          `;
+          conversationContainer.appendChild(el);
+        });
+      }
+
+      function renderAnalysis() {
+        analysisContainer.innerHTML = `
+          <div class="flex items-center justify-between p-3 rounded-xl bg-surface-800/40 border border-white/5">
+            <div><p class="text-surface-500 text-xs mb-0.5 uppercase tracking-wider">${analysisData.scoreLabel}</p><p class="font-display text-xl font-bold ${analysisData.score >= 70 ? 'text-success' : 'text-warning'}">${analysisData.score}%</p></div>
+            <div class="w-10 h-10 rounded-full ${analysisData.score >= 70 ? 'bg-success/10' : 'bg-warning/10'} flex items-center justify-center">
+              <svg class="w-5 h-5 ${analysisData.score >= 70 ? 'text-success' : 'text-warning'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+            </div>
+          </div>
+          <div class="p-3 rounded-xl bg-surface-800/40 border border-white/5">
+            <div class="flex items-center gap-2 mb-1.5"><svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><p class="font-semibold text-surface-100 text-sm">Tone & style</p></div>
+            <p class="text-surface-400 text-xs leading-relaxed">${analysisData.tone}</p>
+          </div>
+          <div class="p-3 rounded-xl bg-surface-800/40 border border-white/5">
+            <div class="flex items-center gap-2 mb-1.5"><svg class="w-4 h-4 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><p class="font-semibold text-surface-100 text-sm">Strengths</p></div>
+            <ul class="space-y-1 text-xs text-surface-400 list-disc pl-4">${analysisData.positiveSignals.map(s => `<li>${s}</li>`).join('')}</ul>
+          </div>
+          <div class="p-3 rounded-xl bg-surface-800/40 border border-white/5">
+            <div class="flex items-center gap-2 mb-1.5"><svg class="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg><p class="font-semibold text-surface-100 text-sm">Smart rewrites</p></div>
+            <div class="space-y-1.5 mt-2">${analysisData.suggestions.map(r => `<button class="w-full text-left px-2.5 py-2 rounded-lg bg-surface-900/50 text-surface-200 text-xs transition-colors hover:bg-surface-900 border border-transparent hover:border-surface-700"><span class="text-accent font-semibold">${r.type}:</span> "${r.text}"</button>`).join('')}</div>
+          </div>
+        `;
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+    })();
+  </script>
+</body>
+</html>

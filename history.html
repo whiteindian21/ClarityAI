@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>History · TextCoach</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['Space Grotesk', 'sans-serif'],
+            body: ['DM Sans', 'sans-serif'],
+          },
+          colors: {
+            surface: {
+              50: '#fafaf9',
+              100: '#f5f5f4',
+              200: '#e7e5e4',
+              300: '#d6d3d1',
+              400: '#a8a29e',
+              500: '#78716c',
+              600: '#57534e',
+              700: '#44403c',
+              800: '#292524',
+              900: '#1c1917',
+              950: '#0c0a09',
+            },
+            accent: {
+              DEFAULT: '#f97316',
+              light: '#fb923c',
+              dark: '#ea580c',
+              muted: '#fed7aa',
+            },
+            success: '#10b981',
+            warning: '#f59e0b',
+            danger: '#ef4444',
+          },
+          animation: {
+            'fade-in': 'fadeIn 0.4s cubic-bezier(0.16,1,0.3,1)',
+            'slide-up': 'slideUp 0.4s cubic-bezier(0.16,1,0.3,1)',
+            'pulse-slow': 'pulse 2s ease-in-out infinite',
+            'shake': 'shake 0.4s ease-in-out',
+          },
+          keyframes: {
+            fadeIn: { '0%': { opacity: '0', transform: 'translateY(8px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+            slideUp: { '0%': { opacity: '0', transform: 'translateY(100%)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+            shake: { '0%,100%': { transform: 'translateX(0)' }, '20%,60%': { transform: 'translateX(-5px)' }, '40%,80%': { transform: 'translateX(5px)' } },
+          },
+        },
+      },
+    }
+  </script>
+  <style>
+    :root {
+      --bg: #0c0a09;
+      --bg-elevated: #1c1917;
+      --fg: #fafaf9;
+      --fg-muted: #a8a29e;
+      --accent: #f97316;
+      --border: #292524;
+      --card-bg: #1a1714;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      min-height: 100vh;
+    }
+    .font-display { font-family: 'Space Grotesk', sans-serif; }
+
+    .bg-mesh {
+      position: fixed; inset: 0; z-index: -1;
+      background: radial-gradient(ellipse 80% 50% at 20% -10%, rgba(249,115,22,0.08), transparent),
+                  radial-gradient(ellipse 60% 40% at 80% 100%, rgba(249,115,22,0.05), transparent),
+                  radial-gradient(ellipse 100% 80% at 50% 50%, rgba(28,25,23,1), transparent);
+    }
+    .noise-overlay {
+      position: fixed; inset: 0; z-index: -1; opacity: 0.02;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    }
+
+    /* unified card style */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      transition: all 0.2s;
+    }
+    .card:hover {
+      border-color: rgba(249,115,22,0.3);
+      box-shadow: 0 20px 30px -15px rgba(249,115,22,0.15);
+      transform: translateY(-2px);
+    }
+
+    .score-badge {
+      display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 100px; font-weight: 600; font-size: 14px;
+    }
+    .score-high { background: rgba(16,185,129,0.15); color: #10b981; }
+    .score-medium { background: rgba(245,158,11,0.15); color: #f59e0b; }
+    .score-low { background: rgba(239,68,68,0.15); color: #ef4444; }
+
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(4px); z-index: 100;
+      opacity: 0; visibility: hidden; transition: all 0.3s;
+    }
+    .modal-overlay.open { opacity: 1; visibility: visible; }
+    .modal-content {
+      position: fixed; bottom: 0; left: 0; right: 0; max-height: 90vh; background: #1f1b18;
+      border-top: 1px solid var(--border); border-radius: 28px 28px 0 0; z-index: 101;
+      transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.16,1,0.3,1); overflow-y: auto;
+    }
+    @media (min-width: 768px) {
+      .modal-content { top: 50%; bottom: auto; left: 50%; right: auto; max-width: 600px; width: 90%; max-height: 85vh; border: 1px solid var(--border); border-radius: 28px; transform: translate(-50%, -50%) scale(0.95); opacity: 0; }
+      .modal-overlay.open .modal-content { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    }
+    .modal-overlay.open .modal-content { transform: translateY(0); }
+
+    .btn-primary {
+      background: linear-gradient(145deg, #f97316, #ea580c);
+      transition: all 0.2s;
+    }
+    .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 15px 25px -10px #f97316; }
+    .btn-secondary:hover { background: rgba(249,115,22,0.1); border-color: #f97316; }
+    .btn-danger:hover { background: rgba(239,68,68,0.2); border-color: #ef4444; }
+
+    .dropdown-menu {
+      transform: translateY(-10px); opacity: 0; visibility: hidden;
+      transition: all 0.2s;
+    }
+    .dropdown-menu.open { transform: translateY(0); opacity: 1; visibility: visible; }
+
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 200;
+      transform: translateX(100%); opacity: 0;
+      transition: all 0.3s;
+    }
+    .toast.show { transform: translateX(0); opacity: 1; }
+
+    .skeleton {
+      background: linear-gradient(90deg, #292524 25%, rgba(255,255,255,0.05) 50%, #292524 75%);
+      background-size: 200% 100%;
+      animation: skeleton-loading 1.5s infinite;
+      border-radius: 8px;
+    }
+    @keyframes skeleton-loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+    :focus-visible { outline: 2px solid #f97316; outline-offset: 2px; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #3f3a37; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div class="bg-mesh"></div>
+  <div class="noise-overlay"></div>
+
+  <!-- Navbar -->
+  <nav class="fixed top-0 left-0 right-0 z-50 border-b border-surface-800/50 backdrop-blur-xl bg-surface-950/90">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <a href="dashboard.html" class="flex items-center gap-2 group">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-accent to-accent-dark flex items-center justify-center transition-transform group-hover:scale-105">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+            </svg>
+          </div>
+          <span class="font-display font-semibold text-lg text-surface-50 hidden sm:block">TextCoach</span>
+        </a>
+
+        <div class="flex items-center gap-4">
+          <!-- User Dropdown -->
+          <div class="relative">
+            <button 
+              id="user-menu-btn" 
+              class="flex items-center gap-2 p-1.5 rounded-xl hover:bg-surface-800/60 transition-colors"
+              aria-label="User menu"
+              aria-expanded="false"
+            >
+              <div id="user-avatar" class="w-8 h-8 rounded-full bg-gradient-to-br from-accent to-accent-dark flex items-center justify-center text-white font-medium text-sm shadow-md">U</div>
+              <svg class="w-4 h-4 text-surface-400 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+
+            <div id="user-dropdown" class="dropdown-menu absolute right-0 mt-2 w-56 bg-surface-900 border border-surface-800 rounded-xl shadow-2xl overflow-hidden">
+              <div class="px-4 py-3 border-b border-surface-800 bg-surface-900/50">
+                <p id="user-email" class="text-sm text-surface-200 font-medium truncate">user@example.com</p>
+                <p class="text-xs text-surface-500" id="user-plan">Free Plan</p>
+              </div>
+              <div class="py-1">
+                <a href="dashboard.html" class="flex items-center gap-3 px-4 py-2.5 text-sm text-surface-300 hover:bg-surface-800 transition-colors">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+                  Dashboard
+                </a>
+                <a href="history.html" class="flex items-center gap-3 px-4 py-2.5 text-sm text-accent bg-surface-800/30 transition-colors">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  History
+                </a>
+                <a href="settings.html" class="flex items-center gap-3 px-4 py-2.5 text-sm text-surface-300 hover:bg-surface-800 transition-colors">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                  Settings
+                </a>
+              </div>
+              <div class="border-t border-surface-800 py-1">
+                <button id="logout-btn" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-danger hover:bg-surface-800 transition-colors">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                  Log out
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="pt-24 pb-16 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-4xl mx-auto">
+      
+      <!-- Header -->
+      <div class="mb-8 animate-fade-in flex items-center justify-between">
+        <div>
+          <h1 class="font-display text-3xl sm:text-4xl font-bold tracking-tight mb-2">Analysis History</h1>
+          <p class="text-surface-400">Review your past text analyses</p>
+        </div>
+        <a href="dashboard.html" class="hidden sm:flex items-center gap-2 px-4 py-2 bg-surface-800/50 rounded-xl text-surface-300 hover:text-surface-50 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+          <span>Dashboard</span>
+        </a>
+      </div>
+
+      <!-- Loading Skeletons -->
+      <div id="loading-skeletons" class="space-y-4">
+        <div class="card p-6">
+          <div class="flex items-start justify-between gap-4 mb-4">
+            <div class="skeleton h-5 w-32"></div>
+            <div class="skeleton h-6 w-16 rounded-full"></div>
+          </div>
+          <div class="skeleton h-4 w-full mb-2"></div>
+          <div class="skeleton h-4 w-3/4 mb-4"></div>
+          <div class="flex gap-2">
+            <div class="skeleton h-9 w-24 rounded-lg"></div>
+            <div class="skeleton h-9 w-20 rounded-lg"></div>
+          </div>
+        </div>
+        <div class="card p-6">
+          <div class="flex items-start justify-between gap-4 mb-4">
+            <div class="skeleton h-5 w-28"></div>
+            <div class="skeleton h-6 w-16 rounded-full"></div>
+          </div>
+          <div class="skeleton h-4 w-full mb-2"></div>
+          <div class="skeleton h-4 w-2/3 mb-4"></div>
+          <div class="flex gap-2">
+            <div class="skeleton h-9 w-24 rounded-lg"></div>
+            <div class="skeleton h-9 w-20 rounded-lg"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- History List -->
+      <div id="history-list" class="hidden space-y-4"></div>
+
+      <!-- Empty State -->
+      <div id="empty-state" class="hidden text-center py-16 card p-12">
+        <div class="w-24 h-24 mx-auto mb-6 rounded-3xl bg-surface-800/50 flex items-center justify-center">
+          <svg class="w-12 h-12 text-surface-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <h3 class="font-display text-xl font-semibold text-surface-200 mb-2">No Analysis History</h3>
+        <p class="text-surface-400 max-w-sm mx-auto mb-6">You haven't analyzed any texts yet. Start your first analysis to see insights here.</p>
+        <a href="dashboard.html" class="btn-primary inline-flex items-center gap-2 px-6 py-3 text-white font-semibold rounded-xl shadow-lg">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Analyze a Text
+        </a>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- View Analysis Modal -->
+  <div id="modal-overlay" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-content">
+      <div class="sticky top-0 bg-surface-900 border-b border-surface-800 px-6 py-4 flex items-center justify-between z-10">
+        <h2 id="modal-title" class="font-display text-xl font-semibold text-surface-50">Analysis Details</h2>
+        <button id="modal-close" class="p-2 text-surface-400 hover:text-surface-200 hover:bg-surface-800 rounded-lg transition-colors" aria-label="Close modal">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="p-6 space-y-6" id="modal-body"></div>
+      <div class="sticky bottom-0 bg-surface-900 border-t border-surface-800 px-6 py-4 flex justify-end gap-3">
+        <button id="copy-modal-results" class="btn-secondary flex items-center gap-2 px-4 py-2 border border-surface-700 text-surface-300 rounded-xl text-sm">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+          Copy Summary
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div id="delete-modal" class="modal-overlay" role="dialog" aria-modal="true">
+    <div class="modal-content max-w-sm">
+      <div class="p-6 text-center">
+        <div class="w-14 h-14 mx-auto mb-4 rounded-full bg-danger/10 flex items-center justify-center">
+          <svg class="w-7 h-7 text-danger" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+        </div>
+        <h3 class="font-display text-xl font-semibold text-surface-50 mb-2">Delete Analysis</h3>
+        <p class="text-surface-400 mb-6">Are you sure you want to delete this analysis? This action cannot be undone.</p>
+        <div class="flex gap-3">
+          <button id="cancel-delete" class="flex-1 py-2.5 px-4 border border-surface-700 text-surface-300 font-medium rounded-xl hover:bg-surface-800 transition-colors">Cancel</button>
+          <button id="confirm-delete" class="flex-1 py-2.5 px-4 bg-danger hover:bg-red-600 text-white font-medium rounded-xl transition-colors">Delete</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast bg-surface-900 border border-surface-700 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3">
+    <svg id="toast-icon" class="w-5 h-5 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+    <span id="toast-text">Copied</span>
+  </div>
+
+  <script>
+    // ============================================
+    // Supabase Configuration
+    // ============================================
+    const SUPABASE_URL = 'https://kkblbhghqcxpopmkjtbo.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrYmxiaGdocWN4cG9wbWtqdGJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNTQ5MDgsImV4cCI6MjA4ODczMDkwOH0.dkkEpQj0Dd9w7eFpmGGGfb1SBkNljXwJyX4hO5DMBFs';
+
+    const { createClient } = window.supabase;
+    const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // ============================================
+    // State
+    // ============================================
+    let state = {
+      user: null,
+      analyses: [],
+      selectedAnalysisId: null
+    };
+
+    // ============================================
+    // DOM Elements
+    // ============================================
+    const loadingSkeletons = document.getElementById('loading-skeletons');
+    const historyList = document.getElementById('history-list');
+    const emptyState = document.getElementById('empty-state');
+    const modalOverlay = document.getElementById('modal-overlay');
+    const modalBody = document.getElementById('modal-body');
+    const modalClose = document.getElementById('modal-close');
+    const copyModalBtn = document.getElementById('copy-modal-results');
+    const deleteModal = document.getElementById('delete-modal');
+    const cancelDelete = document.getElementById('cancel-delete');
+    const confirmDelete = document.getElementById('confirm-delete');
+    const userMenuBtn = document.getElementById('user-menu-btn');
+    const userDropdown = document.getElementById('user-dropdown');
+    const logoutBtn = document.getElementById('logout-btn');
+    const userEmailSpan = document.getElementById('user-email');
+    const userAvatar = document.getElementById('user-avatar');
+    const userPlanSpan = document.getElementById('user-plan');
+    const toast = document.getElementById('toast');
+    const toastText = document.getElementById('toast-text');
+    const toastIcon = document.getElementById('toast-icon');
+
+    // ============================================
+    // Utility Functions
+    // ============================================
+    function showToast(message, type = 'success') {
+      toastText.textContent = message;
+      toastIcon.innerHTML = type === 'success' 
+        ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>'
+        : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>';
+      toastIcon.classList.toggle('text-success', type === 'success');
+      toastIcon.classList.toggle('text-danger', type === 'error');
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    function formatRelativeTime(dateString) {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffSec = Math.floor(diffMs / 1000);
+      const diffMin = Math.floor(diffSec / 60);
+      const diffHour = Math.floor(diffMin / 60);
+      const diffDay = Math.floor(diffHour / 24);
+
+      if (diffSec < 60) return 'just now';
+      if (diffMin < 60) return `${diffMin} minute${diffMin > 1 ? 's' : ''} ago`;
+      if (diffHour < 24) return `${diffHour} hour${diffHour > 1 ? 's' : ''} ago`;
+      if (diffDay === 1) return 'yesterday';
+      if (diffDay < 7) return `${diffDay} days ago`;
+      return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function truncateText(text, maxLength = 120) {
+      if (!text) return '';
+      if (text.length <= maxLength) return text;
+      return text.substring(0, maxLength).trim() + '…';
+    }
+
+    function getScoreClass(score) {
+      if (score >= 70) return 'score-high';
+      if (score >= 40) return 'score-medium';
+      return 'score-low';
+    }
+
+    function getScoreLabel(score) {
+      if (score >= 70) return 'High';
+      if (score >= 40) return 'Medium';
+      return 'Low';
+    }
+
+    // ============================================
+    // Render Functions
+    // ============================================
+    function renderHistoryList(analyses) {
+      if (analyses.length === 0) {
+        loadingSkeletons.classList.add('hidden');
+        emptyState.classList.remove('hidden');
+        historyList.classList.add('hidden');
+        return;
+      }
+
+      historyList.innerHTML = analyses.map((analysis, index) => {
+        const conversationText = analysis.conversation || analysis.conversation_text || analysis.message || '';
+        const linesCount = conversationText.split('\n').filter(line => line.trim()).length;
+        const tone = analysis.tone || 'No tone analysis available';
+        const redFlags = analysis.red_flags || analysis.redFlags || [];
+        const replies = analysis.suggested_replies || analysis.replies || [];
+
+        return `
+        <div class="card p-6 animate-fade-in" style="animation-delay: ${index * 0.05}s">
+          <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-surface-800 flex items-center justify-center">
+                <svg class="w-5 h-5 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                </svg>
+              </div>
+              <div>
+                <p class="text-sm text-surface-400" title="${new Date(analysis.created_at).toLocaleString()}">${formatRelativeTime(analysis.created_at)}</p>
+                <p class="text-xs text-surface-500 mt-0.5">${linesCount} line${linesCount !== 1 ? 's' : ''}</p>
+              </div>
+            </div>
+            <span class="score-badge ${getScoreClass(analysis.score)}">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+              </svg>
+              ${analysis.score}%
+            </span>
+          </div>
+          
+          <p class="text-surface-300 text-sm mb-4 line-clamp-2">${truncateText(conversationText.replace(/\n/g, ' '), 150)}</p>
+          
+          <div class="flex items-center gap-2 text-sm text-surface-400 mb-4">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <span class="line-clamp-1">${truncateText(tone, 60)}</span>
+          </div>
+          
+          <div class="flex gap-2">
+            <button 
+              onclick="viewAnalysis('${analysis.id}')"
+              class="btn-secondary flex items-center gap-2 px-4 py-2 border border-surface-700 text-surface-300 text-sm font-medium rounded-lg hover:border-accent"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+              </svg>
+              View
+            </button>
+            <button 
+              onclick="confirmDeleteAnalysis('${analysis.id}')"
+              class="btn-danger flex items-center gap-2 px-4 py-2 border border-surface-700 text-surface-400 text-sm font-medium rounded-lg hover:border-danger"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+              </svg>
+              Delete
+            </button>
+          </div>
+        </div>
+      `}).join('');
+
+      loadingSkeletons.classList.add('hidden');
+      historyList.classList.remove('hidden');
+      emptyState.classList.add('hidden');
+    }
+
+    function renderModalContent(analysis) {
+      const conversationText = analysis.conversation || analysis.conversation_text || '';
+      const tone = analysis.tone || 'No tone analysis available';
+      const redFlags = analysis.red_flags || analysis.redFlags || [];
+      const replies = analysis.suggested_replies || analysis.replies || [];
+
+      modalBody.innerHTML = `
+        <!-- Score -->
+        <div class="text-center p-6 bg-surface-800/30 rounded-2xl">
+          <p class="text-sm text-surface-400 mb-2">Clarity Score</p>
+          <p class="font-display text-6xl font-bold ${analysis.score >= 70 ? 'text-success' : analysis.score >= 40 ? 'text-warning' : 'text-danger'}">${analysis.score}</p>
+          <p class="text-lg font-medium text-surface-300 mt-1">${getScoreLabel(analysis.score)} Clarity</p>
+        </div>
+
+        <!-- Analyzed Text -->
+        <div>
+          <h4 class="font-display font-semibold text-surface-50 mb-3 flex items-center gap-2">
+            <svg class="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+            </svg>
+            Analyzed Text
+          </h4>
+          <div class="bg-surface-800/30 rounded-xl p-4 max-h-48 overflow-y-auto">
+            <pre class="text-sm text-surface-300 whitespace-pre-wrap font-body">${conversationText}</pre>
+          </div>
+        </div>
+
+        <!-- Tone -->
+        <div>
+          <h4 class="font-display font-semibold text-surface-50 mb-3 flex items-center gap-2">
+            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            Tone Analysis
+          </h4>
+          <p class="text-surface-300 leading-relaxed">${tone}</p>
+        </div>
+
+        <!-- Issues Detected (was Red Flags) -->
+        <div>
+          <h4 class="font-display font-semibold text-surface-50 mb-3 flex items-center gap-2">
+            <svg class="w-5 h-5 ${redFlags.length > 0 ? 'text-warning' : 'text-success'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${redFlags.length > 0 ? 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z' : 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'}"/>
+            </svg>
+            Issues Detected
+          </h4>
+          ${redFlags.length > 0 
+            ? `<ul class="space-y-2">${redFlags.map(flag => `
+                <li class="flex items-start gap-2 text-surface-300">
+                  <svg class="w-4 h-4 text-warning shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01"/>
+                  </svg>
+                  ${flag}
+                </li>
+              `).join('')}</ul>`
+            : '<p class="text-success font-medium">No issues detected</p>'
+          }
+        </div>
+
+        <!-- Suggested Replies -->
+        ${replies.length > 0 ? `
+          <div>
+            <h4 class="font-display font-semibold text-surface-50 mb-3 flex items-center gap-2">
+              <svg class="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+              </svg>
+              Suggested Replies
+            </h4>
+            <div class="space-y-3">
+              ${replies.map((reply, i) => `
+                <div class="p-4 bg-surface-800/30 rounded-xl">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium text-accent">${reply.type || 'Reply'}</span>
+                    <span class="text-xs text-surface-500">Option ${i + 1}</span>
+                  </div>
+                  <p class="text-surface-200 mb-2">"${reply.text || ''}"</p>
+                  <p class="text-xs text-surface-500">${reply.why || ''}</p>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+      `;
+    }
+
+    // ============================================
+    // Modal Functions
+    // ============================================
+    function openModal() {
+      modalOverlay.classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal() {
+      modalOverlay.classList.remove('open');
+      document.body.style.overflow = '';
+    }
+
+    function openDeleteModal() {
+      deleteModal.classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeDeleteModal() {
+      deleteModal.classList.remove('open');
+      document.body.style.overflow = '';
+    }
+
+    // ============================================
+    // Action Functions (exposed globally)
+    // ============================================
+    window.viewAnalysis = function(id) {
+      const analysis = state.analyses.find(a => a.id === id);
+      if (!analysis) return;
+      renderModalContent(analysis);
+      window.currentModalAnalysis = analysis; // for copy
+      openModal();
+    };
+
+    window.confirmDeleteAnalysis = function(id) {
+      state.selectedAnalysisId = id;
+      openDeleteModal();
+    };
+
+    async function deleteAnalysis() {
+      const id = state.selectedAnalysisId;
+      if (!id) return;
+
+      try {
+        const { error } = await supabaseClient
+          .from('analyses')
+          .delete()
+          .eq('id', id)
+          .eq('user_id', state.user.id);
+
+        if (error) throw error;
+
+        state.analyses = state.analyses.filter(a => a.id !== id);
+        renderHistoryList(state.analyses);
+        closeDeleteModal();
+        showToast('Analysis deleted successfully');
+      } catch (error) {
+        console.error('Delete error:', error);
+        showToast('Failed to delete analysis', 'error');
+      }
+    }
+
+    // ============================================
+    // Copy modal summary
+    // ============================================
+    copyModalBtn.addEventListener('click', () => {
+      const analysis = window.currentModalAnalysis;
+      if (!analysis) return;
+      const conversationText = analysis.conversation || analysis.conversation_text || '';
+      const tone = analysis.tone || '';
+      const redFlags = analysis.red_flags || analysis.redFlags || [];
+      const replies = analysis.suggested_replies || analysis.replies || [];
+
+
+      const summary = `Clarity Score: ${analysis.score}% (${getScoreLabel(analysis.score)})
+Tone: ${tone}
+Issues: ${redFlags.length ? redFlags.join(', ') : 'None'}
+Replies: ${replies.map(r => r.text).join(' | ')}`;
+      
+      navigator.clipboard.writeText(summary);
+      showToast('Analysis summary copied');
+    });
+
+    // ============================================
+    // User Dropdown
+    // ============================================
+    userMenuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = userDropdown.classList.contains('open');
+      userDropdown.classList.toggle('open');
+      userMenuBtn.setAttribute('aria-expanded', String(!isOpen));
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!userDropdown.contains(e.target) && !userMenuBtn.contains(e.target)) {
+        userDropdown.classList.remove('open');
+        userMenuBtn.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    // ============================================
+    // Event Listeners
+    // ============================================
+    modalClose.addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', (e) => {
+      if (e.target === modalOverlay) closeModal();
+    });
+
+    cancelDelete.addEventListener('click', closeDeleteModal);
+    confirmDelete.addEventListener('click', deleteAnalysis);
+    deleteModal.addEventListener('click', (e) => {
+      if (e.target === deleteModal) closeDeleteModal();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeModal();
+        closeDeleteModal();
+      }
+    });
+
+    logoutBtn.addEventListener('click', async () => {
+      await supabaseClient.auth.signOut();
+      window.location.href = 'login.html';
+    });
+
+    // ============================================
+    // Data Fetching
+    // ============================================
+    async function fetchUserAndAnalyses() {
+      const { data: { user } } = await supabaseClient.auth.getUser();
+      if (!user) {
+        window.location.href = 'login.html';
+        return null;
+      }
+      state.user = user;
+
+      // Fetch profile for full_name and plan
+      let displayName = user.email; // fallback
+      let planName = 'Free Plan';
+      
+      try {
+        const { data: profile, error: profileError } = await supabaseClient
+          .from('profiles')
+          .select('full_name, plan')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (profile) {
+          if (profile.full_name) displayName = profile.full_name;
+          if (profile.plan) planName = profile.plan;
+        } else if (user.user_metadata?.full_name) {
+          // Fallback to metadata if no profile row
+          displayName = user.user_metadata.full_name;
+        }
+      } catch (err) {
+        console.warn('Could not fetch profile, using fallback.', err);
+        if (user.user_metadata?.full_name) {
+          displayName = user.user_metadata.full_name;
+        }
+      }
+
+      userEmailSpan.textContent = user.email;
+      userAvatar.textContent = (displayName?.[0] || 'U').toUpperCase();
+      userPlanSpan.textContent = planName;
+
+      const { data, error } = await supabaseClient
+        .from('analyses')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Fetch error:', error);
+        return [];
+      }
+
+      return data || [];
+    }
+
+    // ============================================
+    // Initialize
+    // ============================================
+    async function init() {
+      try {
+        state.analyses = await fetchUserAndAnalyses() || [];
+        renderHistoryList(state.analyses);
+      } catch (err) {
+        console.error('Init error:', err);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>

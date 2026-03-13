@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Upgrade · TextCoach</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['Space Grotesk', 'sans-serif'],
+            body: ['DM Sans', 'sans-serif'],
+          },
+          colors: {
+            surface: {
+              50: '#fafaf9',
+              100: '#f5f5f4',
+              200: '#e7e5e4',
+              300: '#d6d3d1',
+              400: '#a8a29e',
+              500: '#78716c',
+              600: '#57534e',
+              700: '#44403c',
+              800: '#292524',
+              900: '#1c1917',
+              950: '#0c0a09',
+            },
+            accent: {
+              DEFAULT: '#f97316',
+              light: '#fb923c',
+              dark: '#ea580c',
+              muted: '#fed7aa',
+            },
+            success: '#10b981',
+            warning: '#f59e0b',
+            danger: '#ef4444',
+          },
+          animation: {
+            'fade-in': 'fadeIn 0.6s cubic-bezier(0.16,1,0.3,1)',
+            'pulse-slow': 'pulse 3s ease-in-out infinite',
+          },
+          keyframes: {
+            fadeIn: { '0%': { opacity: '0', transform: 'translateY(20px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+          },
+        },
+      },
+    }
+  </script>
+  <style>
+    :root {
+      --bg: #0c0a09;
+      --bg-elevated: #1c1917;
+      --fg: #fafaf9;
+      --fg-muted: #a8a29e;
+      --accent: #f97316;
+      --border: #292524;
+      --card-bg: #1a1714;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      min-height: 100vh;
+    }
+    .font-display { font-family: 'Space Grotesk', sans-serif; }
+
+    .bg-mesh {
+      position: fixed; inset: 0; z-index: -1;
+      background: radial-gradient(ellipse 80% 50% at 20% -10%, rgba(249,115,22,0.12), transparent),
+                  radial-gradient(ellipse 60% 40% at 80% 100%, rgba(249,115,22,0.06), transparent),
+                  radial-gradient(ellipse 100% 80% at 50% 50%, rgba(28,25,23,1), transparent);
+    }
+    .noise-overlay {
+      position: fixed; inset: 0; z-index: -1; opacity: 0.02;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      transition: all 0.3s;
+    }
+    .card:hover {
+      border-color: rgba(249,115,22,0.3);
+      box-shadow: 0 30px 40px -20px rgba(249,115,22,0.2);
+      transform: translateY(-4px);
+    }
+    .card.featured {
+      background: linear-gradient(145deg, rgba(249,115,22,0.08) 0%, var(--card-bg) 80%);
+      border: 2px solid rgba(249,115,22,0.4);
+    }
+    .popular-badge {
+      position: absolute; top: -16px; left: 50%; transform: translateX(-50%);
+      background: linear-gradient(135deg, #f97316, #fb923c);
+      color: white; font-size: 0.9rem; font-weight: 700;
+      padding: 6px 24px; border-radius: 100px; white-space: nowrap;
+      box-shadow: 0 10px 20px -5px rgba(249,115,22,0.5);
+      letter-spacing: 0.3px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(145deg, #f97316, #ea580c);
+      transition: all 0.2s;
+    }
+    .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 20px 30px -10px #f97316; }
+
+    .btn-secondary:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.2); }
+
+    .toast {
+      transform: translateX(100%); opacity: 0; transition: all 0.3s;
+    }
+    .toast.show { transform: translateX(0); opacity: 1; }
+
+    :focus-visible { outline: 2px solid #f97316; outline-offset: 2px; }
+    @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation-duration:0.01ms!important; animation-iteration-count:1!important; transition-duration:0.01ms!important; } }
+  </style>
+</head>
+<body>
+  <div class="bg-mesh"></div>
+  <div class="noise-overlay"></div>
+
+  <!-- Navbar -->
+  <nav class="fixed top-0 left-0 right-0 z-50 border-b border-surface-800/50 backdrop-blur-xl bg-surface-950/90">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <a href="dashboard.html" class="flex items-center gap-2 group">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-accent to-accent-dark flex items-center justify-center transition-transform group-hover:scale-105">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+            </svg>
+          </div>
+          <span class="font-display font-semibold text-lg text-surface-50 hidden sm:block">TextCoach</span>
+        </a>
+        <div class="flex items-center gap-4">
+          <span id="user-email-display" class="text-sm text-surface-300 hidden md:inline-block"></span>
+          <button id="logout-btn" class="text-sm text-surface-400 hover:text-surface-200 transition-colors">Logout</button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="pt-28 pb-16 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-6xl mx-auto">
+
+      <!-- Header -->
+      <div class="text-center mb-8 animate-fade-in">
+        <h1 class="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight mb-2">Choose Your Plan</h1>
+        <p class="text-surface-400 text-lg">Simple, transparent pricing – upgrade anytime</p>
+      </div>
+
+      <!-- Current Plan Banner -->
+      <div id="current-plan-banner" class="max-w-2xl mx-auto mb-10 p-5 bg-surface-800/40 border border-surface-700 rounded-2xl hidden animate-fade-in">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-4">
+            <div class="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center">
+              <svg class="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+            </div>
+            <div>
+              <p class="text-sm text-surface-400">Current Plan</p>
+              <p id="current-plan-name" class="font-display font-semibold text-surface-200 text-lg">Free</p>
+            </div>
+          </div>
+          <a href="dashboard.html" class="btn-primary px-5 py-2 text-white text-sm font-medium rounded-xl">Back to Dashboard</a>
+        </div>
+      </div>
+
+      <!-- Pricing Cards (4 columns) -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
+
+        <!-- Free Plan -->
+        <div class="card p-6 flex flex-col animate-fade-in">
+          <h3 class="font-display text-xl font-bold text-surface-50 mb-1">Free</h3>
+          <p class="text-sm text-surface-500 mb-4">20 analyses / month</p>
+          <div class="mb-4">
+            <span class="font-display text-3xl font-bold text-surface-50">$0</span>
+            <span class="text-surface-500">/month</span>
+          </div>
+          <ul class="space-y-3 mb-6 flex-1">
+            <li class="flex items-start gap-2 text-surface-300 text-sm"><span class="w-4 h-4 rounded-full bg-success/20 flex items-center justify-center shrink-0 mt-0.5"><svg class="w-3 h-3 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg></span> Clarity Score</li>
+            <li class="flex items-start gap-2 text-surface-300 text-sm"><span class="w-4 h-4 rounded-full bg-success/20 flex items-center justify-center shrink-0 mt-0.5"><svg class="w-3 h-3 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg></span> Basic Tone</li>
+            <li class="flex items-start gap-2 text-surface-300 text-sm"><span class="w-4 h-4 rounded-full bg-success/20 flex items-center justify-center shrink-0 mt-0.5"><svg class="w-3 h-3 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg></span> 3 Reply Suggestions</li>
+          </ul>
+          <a href="login.html" class="block w-full text-center px-4 py-3 border border-surface-700 text-surface-300 font-medium rounded-xl hover:bg-surface-800 transition-colors">Get Started</a>
+        </div>
+
+        <!-- Starter Plan -->
+        <div class="card p-6 flex flex-col animate-fade-in">
+          <h3 class="font-display text-xl font-bold text-surface-50 mb-1">Starter</h3>
+          <p class="text-sm text-surface-500 mb-4">150 analyses / month</p>
+          <div class="mb-4">
+            <span class="font-display text-3xl font-bold text-surface-50">$5</span>
+            <span class="text-surface-500">/month</span>
+          </div>
+          <ul class="space-y-3 mb-6 flex-1">
+            <li class="flex items-start gap-2 text-surface-300 text-sm"><span class="w-4 h-4 rounded-full bg-success/20 flex items-center justify-center shrink-0 mt-0.5"><svg class="w-3 h-3 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg></span> Full Analysis</li>
+            <li class="flex items-start gap-2 text-surface-300 text-sm"><span class="w-4 h-4 rounded-full bg-success/20 flex items-center justify-center shrink-0 mt-0.5"><svg class="w-3 h-3 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg></span> Issue Detection</li>
+            <li class="flex items-start gap-2 text-surface-300 text-sm"><span class="w-4 h-4 rounded-full bg-success/20 flex items-center justify-center shrink-0 mt-0.5"><svg class="w-3 h-3 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg></span> History Saved</li>
+          </ul>
+          <div id="paypal-button-container-starter" class="paypal-button-container"></div>
+          <div id="starter-loading" class="hidden text-center py-3 text-surface-400">Processing PayPal...</div>
+        </div>
+
+        <!-- Pro Plan (Most Popular) -->
+        <div class="card featured relative p-6 flex flex-col animate-fade-in">
+          <div class="popular-badge">Most Popular</div>
+          <h3 class="font-display text-xl font-bold text-surface-50 mb-1">Pro</h3>
+          <p class="text-sm text-surface-500 mb-4">500 analyses / month</p>
+          <div class="mb-4">
+            <span class="font-display text-3xl font-bold text-surface-50">$10</span>
+            <span class="text-surface-500">/month</span>
+          </div>
+          <ul class="space-y-3 mb-6 flex-1">
+            <li class="flex items-start gap-2 text-surface-300 text-sm"><span class="w-4 h-4 rounded-full bg-success/20 flex items-center justify-center shrink-0 mt-0.5"><svg class="w-3 h-3 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg></span> Everything in Starter</li>
+            <li class="flex items-start gap-2 text-surface-300 text-sm"><span class="w-4 h-4 rounded-full bg-success/20 flex items-center justify-center shrink-0 mt-0.5"><svg class="w-3 h-3 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg></span> Shareable Cards</li>
+            <li class="flex items-start gap-2 text-surface-300 text-sm"><span class="w-4 h-4 rounded-full bg-success/20 flex items-center justify-center shrink-0 mt-0.5"><svg class="w-3 h-3 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg></span> Advanced Insights</li>
+          </ul>
+          <div id="paypal-button-container-pro" class="paypal-button-container"></div>
+          <div id="pro-loading" class="hidden text-center py-3 text-surface-400">Processing PayPal...</div>
+        </div>
+
+        <!-- Power Plan -->
+        <div class="card p-6 flex flex-col animate-fade-in">
+          <h3 class="font-display text-xl font-bold text-surface-50 mb-1">Power</h3>
+          <p class="text-sm text-surface-500 mb-4">Unlimited* (50/day)</p>
+          <div class="mb-4">
+            <span class="font-display text-3xl font-bold text-surface-50">$20</span>
+            <span class="text-surface-500">/month</span>
+          </div>
+          <ul class="space-y-3 mb-6 flex-1">
+            <li class="flex items-start gap-2 text-surface-300 text-sm"><span class="w-4 h-4 rounded-full bg-success/20 flex items-center justify-center shrink-0 mt-0.5"><svg class="w-3 h-3 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg></span> Everything in Pro</li>
+            <li class="flex items-start gap-2 text-surface-300 text-sm"><span class="w-4 h-4 rounded-full bg-success/20 flex items-center justify-center shrink-0 mt-0.5"><svg class="w-3 h-3 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg></span> Personality Profile</li>
+            <li class="flex items-start gap-2 text-surface-300 text-sm"><span class="w-4 h-4 rounded-full bg-success/20 flex items-center justify-center shrink-0 mt-0.5"><svg class="w-3 h-3 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg></span> Priority Processing</li>
+          </ul>
+          <div id="paypal-button-container-power" class="paypal-button-container"></div>
+          <div id="power-loading" class="hidden text-center py-3 text-surface-400">Processing PayPal...</div>
+        </div>
+      </div>
+
+      <!-- Footnote -->
+      <p class="text-center text-surface-500 text-sm mt-8">*1 analysis = 1 credit. All plans include analysis + reply suggestions.</p>
+
+      <!-- Support -->
+      <div class="text-center mt-12 text-surface-400 border-t border-surface-800 pt-8">
+        <p class="mb-2">✨ 14-day money‑back guarantee on all paid plans</p>
+        <p>Questions? <a href="mailto:support@textcoach.com" class="text-accent hover:underline">Contact support</a></p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast fixed bottom-6 right-6 z-50 px-5 py-3 bg-surface-900 border border-surface-700 text-white rounded-xl shadow-2xl flex items-center gap-3">
+    <svg id="toast-icon" class="w-5 h-5 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+    <span id="toast-text">Processing...</span>
+  </div>
+
+  <!-- PayPal SDK (replace YOUR_PAYPAL_CLIENT_ID) -->
+  <script src="https://www.paypal.com/sdk/js?client-id=YOUR_PAYPAL_CLIENT_ID&vault=true&intent=subscription&currency=USD"></script>
+
+  <script>
+    // ============================================
+    // Supabase Setup
+    // ============================================
+    const SUPABASE_URL = 'https://kkblbhghqcxpopmkjtbo.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrYmxiaGdocWN4cG9wbWtqdGJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNTQ5MDgsImV4cCI6MjA4ODczMDkwOH0.dkkEpQj0Dd9w7eFpmGGGfb1SBkNljXwJyX4hO5DMBFs';
+
+    const { createClient } = window.supabase;
+    const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // ============================================
+    // State
+    // ============================================
+    let user = null;
+    let currentPlan = null;
+
+    // PayPal plan IDs – REPLACE WITH YOUR ACTUAL IDs
+    const PAYPAL_PLAN_IDS = {
+      'starter': 'P-STARTER123',
+      'pro': 'P-PRO456',
+      'power': 'P-POWER789'
+    };
+
+    // ============================================
+    // DOM Elements
+    // ============================================
+    const toast = document.getElementById('toast');
+    const toastText = document.getElementById('toast-text');
+    const toastIcon = document.getElementById('toast-icon');
+    const currentPlanBanner = document.getElementById('current-plan-banner');
+    const currentPlanName = document.getElementById('current-plan-name');
+    const userEmailDisplay = document.getElementById('user-email-display');
+    const logoutBtn = document.getElementById('logout-btn');
+    const starterLoading = document.getElementById('starter-loading');
+    const proLoading = document.getElementById('pro-loading');
+    const powerLoading = document.getElementById('power-loading');
+
+    // ============================================
+    // Toast Helper
+    // ============================================
+    function showToast(message, type = 'success') {
+      toastText.textContent = message;
+      toastIcon.innerHTML = type === 'success'
+        ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>'
+        : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>';
+      toastIcon.classList.toggle('text-success', type === 'success');
+      toastIcon.classList.toggle('text-danger', type === 'error');
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 4000);
+    }
+
+    // ============================================
+    // Fetch User and Current Plan
+    // ============================================
+    async function fetchUserAndPlan() {
+      const { data: { user: authUser } } = await supabaseClient.auth.getUser();
+      if (!authUser) {
+        window.location.href = 'login.html';
+        return;
+      }
+      user = authUser;
+      userEmailDisplay.textContent = user.email;
+
+      // Get user's current plan
+      const { data: userPlan, error } = await supabaseClient
+        .from('user_plans')
+        .select('plan_id, plans(name)')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (error) console.error('Error fetching plan:', error);
+      if (userPlan) {
+        currentPlan = userPlan.plan_id;
+        currentPlanName.textContent = userPlan.plans?.name || 'Free';
+        currentPlanBanner.classList.remove('hidden');
+      } else {
+        currentPlanName.textContent = 'Free';
+        currentPlanBanner.classList.remove('hidden');
+      }
+    }
+
+    // ============================================
+    // PayPal Button Rendering
+    // ============================================
+    function renderPayPalButtons() {
+      if (typeof paypal === 'undefined') {
+        console.warn('PayPal SDK not loaded yet');
+        setTimeout(renderPayPalButtons, 500);
+        return;
+      }
+
+      // Starter Button
+      if (document.getElementById('paypal-button-container-starter')) {
+        paypal.Buttons({
+          style: { shape: 'rect', color: 'gold', layout: 'vertical', label: 'subscribe', height: 45 },
+          createSubscription: function(data, actions) {
+            return actions.subscription.create({ 'plan_id': PAYPAL_PLAN_IDS['starter'] });
+          },
+          onApprove: async function(data, actions) {
+            starterLoading.classList.remove('hidden');
+            try {
+              const { error } = await supabaseClient.functions.invoke('activate-subscription', {
+                body: {
+                  subscription_id: data.subscriptionID,
+                  plan_id: 'starter',
+                  user_id: user.id
+                }
+              });
+              if (error) throw error;
+              showToast('Subscription activated! Redirecting...');
+              setTimeout(() => window.location.href = 'dashboard.html?upgrade=success', 2000);
+            } catch (err) {
+              console.error(err);
+              showToast('Activation failed. Please contact support.', 'error');
+              starterLoading.classList.add('hidden');
+            }
+          },
+          onError: function(err) {
+            console.error(err);
+            showToast('PayPal error. Please try again.', 'error');
+          }
+        }).render('#paypal-button-container-starter');
+      }
+
+      // Pro Button
+      if (document.getElementById('paypal-button-container-pro')) {
+        paypal.Buttons({
+          style: { shape: 'rect', color: 'blue', layout: 'vertical', label: 'subscribe', height: 45 },
+          createSubscription: function(data, actions) {
+            return actions.subscription.create({ 'plan_id': PAYPAL_PLAN_IDS['pro'] });
+          },
+          onApprove: async function(data, actions) {
+            proLoading.classList.remove('hidden');
+            try {
+              const { error } = await supabaseClient.functions.invoke('activate-subscription', {
+                body: {
+                  subscription_id: data.subscriptionID,
+                  plan_id: 'pro',
+                  user_id: user.id
+                }
+              });
+              if (error) throw error;
+              showToast('Subscription activated! Redirecting...');
+              setTimeout(() => window.location.href = 'dashboard.html?upgrade=success', 2000);
+            } catch (err) {
+              console.error(err);
+              showToast('Activation failed. Please contact support.', 'error');
+              proLoading.classList.add('hidden');
+            }
+          },
+          onError: function(err) {
+            console.error(err);
+            showToast('PayPal error. Please try again.', 'error');
+          }
+        }).render('#paypal-button-container-pro');
+      }
+
+      // Power Button
+      if (document.getElementById('paypal-button-container-power')) {
+        paypal.Buttons({
+          style: { shape: 'rect', color: 'black', layout: 'vertical', label: 'subscribe', height: 45 },
+          createSubscription: function(data, actions) {
+            return actions.subscription.create({ 'plan_id': PAYPAL_PLAN_IDS['power'] });
+          },
+          onApprove: async function(data, actions) {
+            powerLoading.classList.remove('hidden');
+            try {
+              const { error } = await supabaseClient.functions.invoke('activate-subscription', {
+                body: {
+                  subscription_id: data.subscriptionID,
+                  plan_id: 'power',
+                  user_id: user.id
+                }
+              });
+              if (error) throw error;
+              showToast('Subscription activated! Redirecting...');
+              setTimeout(() => window.location.href = 'dashboard.html?upgrade=success', 2000);
+            } catch (err) {
+              console.error(err);
+              showToast('Activation failed. Please contact support.', 'error');
+              powerLoading.classList.add('hidden');
+            }
+          },
+          onError: function(err) {
+            console.error(err);
+            showToast('PayPal error. Please try again.', 'error');
+          }
+        }).render('#paypal-button-container-power');
+      }
+    }
+
+    // ============================================
+    // Logout
+    // ============================================
+    logoutBtn.addEventListener('click', async () => {
+      await supabaseClient.auth.signOut();
+      window.location.href = 'login.html';
+    });
+
+    // ============================================
+    // Initialize
+    // ============================================
+    (async function init() {
+      await fetchUserAndPlan();
+      if (user) {
+        renderPayPalButtons();
+      }
+    })();
+  </script>
+</body>
+</html>
