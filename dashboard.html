@@ -482,7 +482,7 @@
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .maybeSingle(); // Use maybeSingle to avoid error if none
+        .single();
       if (profileError && profileError.code !== 'PGRST116') console.error('Profile error:', profileError);
 
       // Fetch user_plan with plan details
@@ -574,7 +574,7 @@
     });
 
     // ============================================
-    // Perform Analysis - Calls Edge Function
+    // Perform Analysis - Calls Edge Function (FIXED)
     // ============================================
     async function performAnalysis(conversation) {
       if (state.plan.id !== 'power' && state.creditsRemaining <= 0) {
@@ -589,20 +589,18 @@
       }
 
       try {
-        // Ensure session is valid
-        const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
-        if (sessionError || !session) {
-          // Try to refresh session
-          const { data: refreshData, error: refreshError } = await supabaseClient.auth.refreshSession();
-          if (refreshError || !refreshData.session) {
-            throw new Error('User not authenticated');
-          }
-        }
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) throw new Error('User not authenticated');
 
-        // Call Edge Function
+        // Call Edge Function with explicit Authorization header
         const { data, error } = await supabaseClient.functions.invoke(
           'analyze-conversation',
-          { body: { conversation } }
+          {
+            body: { conversation },
+            headers: {
+              Authorization: `Bearer ${session.access_token}`
+            }
+          }
         );
 
         if (error) throw error;
