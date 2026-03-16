@@ -401,7 +401,7 @@
     // ============================================
     // Supabase Config
     // ============================================
-    const SUPABASE_URL = 'https://uttdfkxdwfsyrhamhjss.supabase.co';
+  const SUPABASE_URL = 'https://uttdfkxdwfsyrhamhjss.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV0dGRma3hkd2ZzeXJoYW1oanNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2MTUyNTQsImV4cCI6MjA4OTE5MTI1NH0.CnqTkYtI3SksWazpT5jru5KtwsDK6m1LaISCn9UsQ1c';
 
     const { createClient } = window.supabase;
@@ -574,7 +574,7 @@
     });
 
     // ============================================
-    // Perform Analysis - Calls Edge Function (FIXED)
+    // Perform Analysis - Calls Edge Function
     // ============================================
     async function performAnalysis(conversation) {
       if (state.plan.id !== 'power' && state.creditsRemaining <= 0) {
@@ -589,24 +589,13 @@
       }
 
       try {
-        // Refresh session to ensure token is fresh
-        const { data: { session }, error: refreshError } = await supabaseClient.auth.refreshSession();
-        if (refreshError || !session) {
-          console.error('Session refresh failed:', refreshError);
-          throw new Error('Please log in again');
-        }
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) throw new Error('User not authenticated');
 
-        console.log('Using token:', session.access_token); // For debugging
-
-        // Call Edge Function with explicit Authorization header
+        // Call Edge Function
         const { data, error } = await supabaseClient.functions.invoke(
           'analyze-conversation',
-          {
-            body: { conversation },
-            headers: {
-              Authorization: `Bearer ${session.access_token}`
-            }
-          }
+          { body: { conversation } }
         );
 
         if (error) throw error;
@@ -626,7 +615,7 @@
           const { data: deducted, error: deductError } = await supabaseClient.rpc('deduct_credit', {
             user_id: state.user.id
           });
-          if ( deductError || !deducted) {
+          if (deductError || !deducted) {
             console.error('Credit deduction error:', deductError);
             showToast('Failed to deduct credit', 'error');
             return null;
