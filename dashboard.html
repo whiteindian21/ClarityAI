@@ -401,7 +401,7 @@
     // ============================================
     // Supabase Config
     // ============================================
-  const SUPABASE_URL = 'https://uttdfkxdwfsyrhamhjss.supabase.co';
+    const SUPABASE_URL = 'https://uttdfkxdwfsyrhamhjss.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV0dGRma3hkd2ZzeXJoYW1oanNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2MTUyNTQsImV4cCI6MjA4OTE5MTI1NH0.CnqTkYtI3SksWazpT5jru5KtwsDK6m1LaISCn9UsQ1c';
 
     const { createClient } = window.supabase;
@@ -482,7 +482,7 @@
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .single();
+        .maybeSingle(); // Use maybeSingle to avoid error if none
       if (profileError && profileError.code !== 'PGRST116') console.error('Profile error:', profileError);
 
       // Fetch user_plan with plan details
@@ -589,8 +589,15 @@
       }
 
       try {
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) throw new Error('User not authenticated');
+        // Ensure session is valid
+        const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+        if (sessionError || !session) {
+          // Try to refresh session
+          const { data: refreshData, error: refreshError } = await supabaseClient.auth.refreshSession();
+          if (refreshError || !refreshData.session) {
+            throw new Error('User not authenticated');
+          }
+        }
 
         // Call Edge Function
         const { data, error } = await supabaseClient.functions.invoke(
