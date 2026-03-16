@@ -206,8 +206,8 @@
             <li class="flex items-start gap-2 text-surface-300 text-sm"><span class="w-4 h-4 rounded-full bg-success/20 flex items-center justify-center shrink-0 mt-0.5"><svg class="w-3 h-3 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg></span> Issue Detection</li>
             <li class="flex items-start gap-2 text-surface-300 text-sm"><span class="w-4 h-4 rounded-full bg-success/20 flex items-center justify-center shrink-0 mt-0.5"><svg class="w-3 h-3 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg></span> History Saved</li>
           </ul>
-          <div id="paypal-button-container-starter" class="paypal-button-container"></div>
-          <div id="starter-loading" class="hidden text-center py-3 text-surface-400">Processing PayPal...</div>
+          <!-- Conditional button based on current plan -->
+          <div id="starter-container" class="mt-auto"></div>
         </div>
 
         <!-- Pro Plan (Most Popular) -->
@@ -224,8 +224,7 @@
             <li class="flex items-start gap-2 text-surface-300 text-sm"><span class="w-4 h-4 rounded-full bg-success/20 flex items-center justify-center shrink-0 mt-0.5"><svg class="w-3 h-3 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg></span> Shareable Cards</li>
             <li class="flex items-start gap-2 text-surface-300 text-sm"><span class="w-4 h-4 rounded-full bg-success/20 flex items-center justify-center shrink-0 mt-0.5"><svg class="w-3 h-3 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg></span> Advanced Insights</li>
           </ul>
-          <div id="paypal-button-container-pro" class="paypal-button-container"></div>
-          <div id="pro-loading" class="hidden text-center py-3 text-surface-400">Processing PayPal...</div>
+          <div id="pro-container" class="mt-auto"></div>
         </div>
 
         <!-- Power Plan -->
@@ -241,8 +240,7 @@
             <li class="flex items-start gap-2 text-surface-300 text-sm"><span class="w-4 h-4 rounded-full bg-success/20 flex items-center justify-center shrink-0 mt-0.5"><svg class="w-3 h-3 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg></span> Personality Profile</li>
             <li class="flex items-start gap-2 text-surface-300 text-sm"><span class="w-4 h-4 rounded-full bg-success/20 flex items-center justify-center shrink-0 mt-0.5"><svg class="w-3 h-3 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg></span> Priority Processing</li>
           </ul>
-          <div id="paypal-button-container-power" class="paypal-button-container"></div>
-          <div id="power-loading" class="hidden text-center py-3 text-surface-400">Processing PayPal...</div>
+          <div id="power-container" class="mt-auto"></div>
         </div>
       </div>
 
@@ -270,8 +268,8 @@
     // ============================================
     // Supabase Setup
     // ============================================
-    const SUPABASE_URL = 'https://kkblbhghqcxpopmkjtbo.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrYmxiaGdocWN4cG9wbWtqdGJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNTQ5MDgsImV4cCI6MjA4ODczMDkwOH0.dkkEpQj0Dd9w7eFpmGGGfb1SBkNljXwJyX4hO5DMBFs';
+  const SUPABASE_URL = 'https://uttdfkxdwfsyrhamhjss.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV0dGRma3hkd2ZzeXJoYW1oanNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2MTUyNTQsImV4cCI6MjA4OTE5MTI1NH0.CnqTkYtI3SksWazpT5jru5KtwsDK6m1LaISCn9UsQ1c';
 
     const { createClient } = window.supabase;
     const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -299,9 +297,9 @@
     const currentPlanName = document.getElementById('current-plan-name');
     const userEmailDisplay = document.getElementById('user-email-display');
     const logoutBtn = document.getElementById('logout-btn');
-    const starterLoading = document.getElementById('starter-loading');
-    const proLoading = document.getElementById('pro-loading');
-    const powerLoading = document.getElementById('power-loading');
+    const starterContainer = document.getElementById('starter-container');
+    const proContainer = document.getElementById('pro-container');
+    const powerContainer = document.getElementById('power-container');
 
     // ============================================
     // Toast Helper
@@ -348,113 +346,63 @@
     }
 
     // ============================================
-    // PayPal Button Rendering
+    // Render PayPal Button for a specific plan
     // ============================================
-    function renderPayPalButtons() {
+    function renderPayPalButton(containerId, planId, loadingElementId) {
       if (typeof paypal === 'undefined') {
-        console.warn('PayPal SDK not loaded yet');
-        setTimeout(renderPayPalButtons, 500);
+        setTimeout(() => renderPayPalButton(containerId, planId, loadingElementId), 500);
         return;
       }
 
-      // Starter Button
-      if (document.getElementById('paypal-button-container-starter')) {
-        paypal.Buttons({
-          style: { shape: 'rect', color: 'gold', layout: 'vertical', label: 'subscribe', height: 45 },
-          createSubscription: function(data, actions) {
-            return actions.subscription.create({ 'plan_id': PAYPAL_PLAN_IDS['starter'] });
-          },
-          onApprove: async function(data, actions) {
-            starterLoading.classList.remove('hidden');
-            try {
-              const { error } = await supabaseClient.functions.invoke('activate-subscription', {
-                body: {
-                  subscription_id: data.subscriptionID,
-                  plan_id: 'starter',
-                  user_id: user.id
-                }
-              });
-              if (error) throw error;
-              showToast('Subscription activated! Redirecting...');
-              setTimeout(() => window.location.href = 'dashboard.html?upgrade=success', 2000);
-            } catch (err) {
-              console.error(err);
-              showToast('Activation failed. Please contact support.', 'error');
-              starterLoading.classList.add('hidden');
-            }
-          },
-          onError: function(err) {
-            console.error(err);
-            showToast('PayPal error. Please try again.', 'error');
-          }
-        }).render('#paypal-button-container-starter');
+      const container = document.getElementById(containerId);
+      if (!container) return;
+
+      // If user already has this plan, show a "Current Plan" badge instead
+      if (currentPlan === planId) {
+        container.innerHTML = `<div class="block w-full text-center px-4 py-3 bg-surface-700/50 text-surface-300 font-medium rounded-xl">Current Plan</div>`;
+        return;
       }
 
-      // Pro Button
-      if (document.getElementById('paypal-button-container-pro')) {
-        paypal.Buttons({
-          style: { shape: 'rect', color: 'blue', layout: 'vertical', label: 'subscribe', height: 45 },
-          createSubscription: function(data, actions) {
-            return actions.subscription.create({ 'plan_id': PAYPAL_PLAN_IDS['pro'] });
-          },
-          onApprove: async function(data, actions) {
-            proLoading.classList.remove('hidden');
-            try {
-              const { error } = await supabaseClient.functions.invoke('activate-subscription', {
-                body: {
-                  subscription_id: data.subscriptionID,
-                  plan_id: 'pro',
-                  user_id: user.id
-                }
-              });
-              if (error) throw error;
-              showToast('Subscription activated! Redirecting...');
-              setTimeout(() => window.location.href = 'dashboard.html?upgrade=success', 2000);
-            } catch (err) {
-              console.error(err);
-              showToast('Activation failed. Please contact support.', 'error');
-              proLoading.classList.add('hidden');
-            }
-          },
-          onError: function(err) {
-            console.error(err);
-            showToast('PayPal error. Please try again.', 'error');
-          }
-        }).render('#paypal-button-container-pro');
-      }
+      // Create a div for the button and loading indicator
+      const buttonDiv = document.createElement('div');
+      buttonDiv.id = `paypal-button-${planId}`;
+      container.appendChild(buttonDiv);
 
-      // Power Button
-      if (document.getElementById('paypal-button-container-power')) {
-        paypal.Buttons({
-          style: { shape: 'rect', color: 'black', layout: 'vertical', label: 'subscribe', height: 45 },
-          createSubscription: function(data, actions) {
-            return actions.subscription.create({ 'plan_id': PAYPAL_PLAN_IDS['power'] });
-          },
-          onApprove: async function(data, actions) {
-            powerLoading.classList.remove('hidden');
-            try {
-              const { error } = await supabaseClient.functions.invoke('activate-subscription', {
-                body: {
-                  subscription_id: data.subscriptionID,
-                  plan_id: 'power',
-                  user_id: user.id
-                }
-              });
-              if (error) throw error;
-              showToast('Subscription activated! Redirecting...');
-              setTimeout(() => window.location.href = 'dashboard.html?upgrade=success', 2000);
-            } catch (err) {
-              console.error(err);
-              showToast('Activation failed. Please contact support.', 'error');
-              powerLoading.classList.add('hidden');
-            }
-          },
-          onError: function(err) {
+      const loadingDiv = document.createElement('div');
+      loadingDiv.id = loadingElementId;
+      loadingDiv.className = 'hidden text-center py-3 text-surface-400';
+      loadingDiv.textContent = 'Processing PayPal...';
+      container.appendChild(loadingDiv);
+
+      paypal.Buttons({
+        style: { shape: 'rect', color: planId === 'pro' ? 'blue' : (planId === 'power' ? 'black' : 'gold'), layout: 'vertical', label: 'subscribe', height: 45 },
+        createSubscription: function(data, actions) {
+          return actions.subscription.create({ 'plan_id': PAYPAL_PLAN_IDS[planId] });
+        },
+        onApprove: async function(data, actions) {
+          document.getElementById(loadingElementId).classList.remove('hidden');
+          try {
+            const { error } = await supabaseClient.functions.invoke('activate-subscription', {
+              body: {
+                subscription_id: data.subscriptionID,
+                plan_id: planId,
+                user_id: user.id
+              }
+            });
+            if (error) throw error;
+            showToast('Subscription activated! Redirecting...');
+            setTimeout(() => window.location.href = 'dashboard.html?upgrade=success', 2000);
+          } catch (err) {
             console.error(err);
-            showToast('PayPal error. Please try again.', 'error');
+            showToast('Activation failed. Please contact support.', 'error');
+            document.getElementById(loadingElementId).classList.add('hidden');
           }
-        }).render('#paypal-button-container-power');
-      }
+        },
+        onError: function(err) {
+          console.error(err);
+          showToast('PayPal error. Please try again.', 'error');
+        }
+      }).render(`#paypal-button-${planId}`);
     }
 
     // ============================================
@@ -471,7 +419,19 @@
     (async function init() {
       await fetchUserAndPlan();
       if (user) {
-        renderPayPalButtons();
+        // Render buttons after PayPal SDK is ready
+        if (typeof paypal !== 'undefined') {
+          renderPayPalButton('starter-container', 'starter', 'starter-loading');
+          renderPayPalButton('pro-container', 'pro', 'pro-loading');
+          renderPayPalButton('power-container', 'power', 'power-loading');
+        } else {
+          // Wait for SDK
+          window.addEventListener('load', () => {
+            renderPayPalButton('starter-container', 'starter', 'starter-loading');
+            renderPayPalButton('pro-container', 'pro', 'pro-loading');
+            renderPayPalButton('power-container', 'power', 'power-loading');
+          });
+        }
       }
     })();
   </script>

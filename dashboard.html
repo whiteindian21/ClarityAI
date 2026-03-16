@@ -8,7 +8,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <!-- Tesseract.js for OCR -->
   <script src="https://unpkg.com/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
   <script>
     tailwind.config = {
@@ -66,7 +65,7 @@
       --fg-muted: #a8a29e;
       --accent: #f97316;
       --border: #292524;
-      --card-bg: #1a1714; /* warm dark */
+      --card-bg: #1a1714;
     }
 
     * { box-sizing: border-box; }
@@ -89,7 +88,6 @@
       background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
     }
 
-    /* unified card style (dark) */
     .card {
       background: var(--card-bg);
       border: 1px solid var(--border);
@@ -170,7 +168,7 @@
   <div class="bg-mesh"></div>
   <div class="noise-overlay"></div>
 
-  <!-- Navbar (dark, refined) -->
+  <!-- Navbar -->
   <nav class="fixed top-0 left-0 right-0 z-50 border-b border-surface-800/50 backdrop-blur-xl bg-surface-950/90">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex items-center justify-between h-16">
@@ -236,7 +234,7 @@
     </div>
   </nav>
 
-  <!-- Main Content (dark unified cards) -->
+  <!-- Main Content -->
   <main class="pt-24 pb-16 px-4 sm:px-6 lg:px-8">
     <div class="max-w-[900px] mx-auto space-y-6">
 
@@ -249,7 +247,7 @@
         <a href="upgrade.html" class="text-sm text-accent hover:underline">Upgrade</a>
       </div>
 
-      <!-- Input card (now generic text) -->
+      <!-- Input card -->
       <section class="card p-6 sm:p-8 animate-fade-in">
         <h1 class="font-display text-2xl sm:text-3xl font-bold text-surface-50 mb-6">Analyze any text</h1>
         <div class="mb-4">
@@ -329,7 +327,7 @@
           </div>
         </div>
 
-        <!-- Red flags card (now generic issue detection) -->
+        <!-- Red flags card -->
         <div id="red-flags-card" class="card p-6 sm:p-8 animate-slide-up">
           <div class="flex items-start gap-4">
             <div id="red-flags-icon" class="w-12 h-12 rounded-xl bg-success/20 flex items-center justify-center shrink-0">
@@ -342,7 +340,7 @@
           </div>
         </div>
 
-        <!-- Suggested replies (still "Smart replies" but generic) -->
+        <!-- Suggested replies -->
         <div class="animate-slide-up">
           <h3 class="font-display text-xl font-semibold text-surface-50 mb-4 px-1">Smart replies & rewrites</h3>
           <div class="grid gap-4" id="replies-container"></div>
@@ -403,8 +401,8 @@
     // ============================================
     // Supabase Config
     // ============================================
-    const SUPABASE_URL = 'https://kkblbhghqcxpopmkjtbo.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrYmxiaGdocWN4cG9wbWtqdGJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNTQ5MDgsImV4cCI6MjA4ODczMDkwOH0.dkkEpQj0Dd9w7eFpmGGGfb1SBkNljXwJyX4hO5DMBFs';
+  const SUPABASE_URL = 'https://uttdfkxdwfsyrhamhjss.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV0dGRma3hkd2ZzeXJoYW1oanNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2MTUyNTQsImV4cCI6MjA4OTE5MTI1NH0.CnqTkYtI3SksWazpT5jru5KtwsDK6m1LaISCn9UsQ1c';
 
     const { createClient } = window.supabase;
     const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -479,18 +477,21 @@
       }
       state.user = user;
 
+      // Fetch profile
       const { data: profile, error: profileError } = await supabaseClient
         .from('profiles')
         .select('*')
         .eq('id', user.id)
         .single();
-      if (profileError) console.error('Profile error:', profileError);
+      if (profileError && profileError.code !== 'PGRST116') console.error('Profile error:', profileError);
 
+      // Fetch user_plan with plan details
       const { data: userPlan, error: planError } = await supabaseClient
         .from('user_plans')
         .select('*, plans(*)')
         .eq('user_id', user.id)
         .maybeSingle();
+
       if (planError) console.error('User plan error:', planError);
 
       state.profile = profile || { full_name: user.email?.split('@')[0] };
@@ -503,8 +504,9 @@
         max_analyses_per_day: 3
       };
       state.plan = planData;
-      state.creditsRemaining = userPlan?.credits_remaining ?? 0;
+      state.creditsRemaining = userPlan?.credits_remaining ?? planData.credits_per_month;
 
+      // Update UI
       userEmailSpan.textContent = user.email;
       userNameSpan.textContent = state.profile.full_name || 'User';
       userAvatar.textContent = (state.profile.full_name?.[0] || user.email?.[0] || 'U').toUpperCase();
@@ -572,104 +574,76 @@
     });
 
     // ============================================
+    // Perform Analysis - Calls Edge Function
     // ============================================
-// Perform Analysis - Calls Edge Function
-// ============================================
-
-async function performAnalysis(conversation) {
-
-  if (state.plan.id !== 'power' && state.creditsRemaining <= 0) {
-    showToast('No credits remaining', 'error');
-    return null;
-  }
-
-  const maxChars = parseInt(maxCharsSpan.textContent, 10);
-  if (conversation.length > maxChars) {
-    showToast(`Text exceeds ${maxChars} characters`, 'error');
-    return null;
-  }
-
-  try {
-
-    // Ensure user session exists (IMPORTANT for Edge Functions)
-    const { data: { session } } = await supabaseClient.auth.getSession();
-
-    if (!session) {
-      throw new Error("User not authenticated");
-    }
-
-    // Call Edge Function
-    const { data, error } = await supabaseClient.functions.invoke(
-      'analyze-conversation',
-      {
-        body: { conversation }
-      }
-    );
-
-    if (error) throw error;
-    if (!data) throw new Error('No data returned from AI');
-
-    const analysis = {
-      score: data.score,
-      interestLevel: data.interestLevel,
-      interestColor: data.interestColor,
-      tone: data.tone,
-      redFlags: data.redFlags ?? [],
-      replies: data.replies ?? []
-    };
-
-    // Deduct credit if not power plan
-    if (state.plan.id !== 'power') {
-
-      const { error: deductError } = await supabaseClient.rpc(
-        'deduct_credit',
-        { user_id: state.user.id }
-      );
-
-      if (deductError) {
-        console.error('Credit deduction error:', deductError);
-        showToast('Failed to deduct credit', 'error');
+    async function performAnalysis(conversation) {
+      if (state.plan.id !== 'power' && state.creditsRemaining <= 0) {
+        showToast('No credits remaining', 'error');
         return null;
       }
 
-      state.creditsRemaining--;
+      const maxChars = parseInt(maxCharsSpan.textContent, 10);
+      if (conversation.length > maxChars) {
+        showToast(`Text exceeds ${maxChars} characters`, 'error');
+        return null;
+      }
 
-      creditsSpan.textContent = state.creditsRemaining;
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) throw new Error('User not authenticated');
 
-      planBannerText.innerHTML =
-        `You have <span class="font-bold text-accent">${state.creditsRemaining}</span> credits this month`;
+        // Call Edge Function
+        const { data, error } = await supabaseClient.functions.invoke(
+          'analyze-conversation',
+          { body: { conversation } }
+        );
+
+        if (error) throw error;
+        if (!data) throw new Error('No data returned from AI');
+
+        const analysis = {
+          score: data.score,
+          interestLevel: data.interestLevel,
+          interestColor: data.interestColor,
+          tone: data.tone,
+          redFlags: data.redFlags ?? [],
+          replies: data.replies ?? []
+        };
+
+        // Deduct credit if not power plan
+        if (state.plan.id !== 'power') {
+          const { data: deducted, error: deductError } = await supabaseClient.rpc('deduct_credit', {
+            user_id: state.user.id
+          });
+          if (deductError || !deducted) {
+            console.error('Credit deduction error:', deductError);
+            showToast('Failed to deduct credit', 'error');
+            return null;
+          }
+          state.creditsRemaining--;
+          creditsSpan.textContent = state.creditsRemaining;
+          planBannerText.innerHTML = `You have <span class="font-bold text-accent">${state.creditsRemaining}</span> credits this month`;
+        }
+
+        // Save analysis
+        await supabaseClient
+          .from('analyses')
+          .insert({
+            user_id: state.user.id,
+            conversation,
+            score: analysis.score,
+            tone: analysis.tone,
+            red_flags: analysis.redFlags,
+            suggested_replies: analysis.replies
+          });
+
+        return analysis;
+      } catch (err) {
+        console.error('Analysis failed:', err);
+        showToast(err.message || 'Analysis failed. Please try again.', 'error');
+        return null;
+      }
     }
-
-    // Save analysis
-    const { error: insertError } = await supabaseClient
-      .from('analyses')
-      .insert({
-        user_id: state.user.id,
-        conversation,
-        score: analysis.score,
-        tone: analysis.tone,
-        red_flags: analysis.redFlags,
-        suggested_replies: analysis.replies
-      });
-
-    if (insertError) {
-      console.error('Save error:', insertError);
-    }
-
-    return analysis;
-
-  } catch (err) {
-
-    console.error('Analysis failed:', err);
-
-    showToast(
-      err.message || 'Analysis failed. Please try again.',
-      'error'
-    );
-
-    return null;
-  }
-}
 
     // ============================================
     // Render Results
@@ -745,7 +719,6 @@ async function performAnalysis(conversation) {
     analyzeBtn.addEventListener('click', async () => {
       const conv = conversationInput.value.trim();
       if (!conv) { showToast('Please enter text', 'error'); return; }
-      // Removed the minimum length check – any text is now allowed
 
       setLoading(analyzeBtn, true);
       loadingSection.classList.remove('hidden');

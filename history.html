@@ -87,7 +87,6 @@
       background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
     }
 
-    /* unified card style */
     .card {
       background: var(--card-bg);
       border: 1px solid var(--border);
@@ -329,8 +328,8 @@
     // ============================================
     // Supabase Configuration
     // ============================================
-    const SUPABASE_URL = 'https://kkblbhghqcxpopmkjtbo.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrYmxiaGdocWN4cG9wbWtqdGJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNTQ5MDgsImV4cCI6MjA4ODczMDkwOH0.dkkEpQj0Dd9w7eFpmGGGfb1SBkNljXwJyX4hO5DMBFs';
+  const SUPABASE_URL = 'https://uttdfkxdwfsyrhamhjss.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV0dGRma3hkd2ZzeXJoYW1oanNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2MTUyNTQsImV4cCI6MjA4OTE5MTI1NH0.CnqTkYtI3SksWazpT5jru5KtwsDK6m1LaISCn9UsQ1c';
 
     const { createClient } = window.supabase;
     const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -428,11 +427,10 @@
       }
 
       historyList.innerHTML = analyses.map((analysis, index) => {
-        const conversationText = analysis.conversation || analysis.conversation_text || analysis.message || '';
+        const conversationText = analysis.conversation || '';
         const linesCount = conversationText.split('\n').filter(line => line.trim()).length;
         const tone = analysis.tone || 'No tone analysis available';
-        const redFlags = analysis.red_flags || analysis.redFlags || [];
-        const replies = analysis.suggested_replies || analysis.replies || [];
+        const redFlags = analysis.red_flags || [];
 
         return `
         <div class="card p-6 animate-fade-in" style="animation-delay: ${index * 0.05}s">
@@ -495,10 +493,10 @@
     }
 
     function renderModalContent(analysis) {
-      const conversationText = analysis.conversation || analysis.conversation_text || '';
+      const conversationText = analysis.conversation || '';
       const tone = analysis.tone || 'No tone analysis available';
-      const redFlags = analysis.red_flags || analysis.redFlags || [];
-      const replies = analysis.suggested_replies || analysis.replies || [];
+      const redFlags = analysis.red_flags || [];
+      const replies = analysis.suggested_replies || [];
 
       modalBody.innerHTML = `
         <!-- Score -->
@@ -627,7 +625,7 @@
           .from('analyses')
           .delete()
           .eq('id', id)
-          .eq('user_id', state.user.id);
+          .eq('user_id', state.user.id); // ensure user owns it
 
         if (error) throw error;
 
@@ -647,11 +645,10 @@
     copyModalBtn.addEventListener('click', () => {
       const analysis = window.currentModalAnalysis;
       if (!analysis) return;
-      const conversationText = analysis.conversation || analysis.conversation_text || '';
+      const conversationText = analysis.conversation || '';
       const tone = analysis.tone || '';
-      const redFlags = analysis.red_flags || analysis.redFlags || [];
-      const replies = analysis.suggested_replies || analysis.replies || [];
-
+      const redFlags = analysis.red_flags || [];
+      const replies = analysis.suggested_replies || [];
 
       const summary = `Clarity Score: ${analysis.score}% (${getScoreLabel(analysis.score)})
 Tone: ${tone}
@@ -716,35 +713,39 @@ Replies: ${replies.map(r => r.text).join(' | ')}`;
       }
       state.user = user;
 
-      // Fetch profile for full_name and plan
-      let displayName = user.email; // fallback
+      // Fetch profile and plan
+      let displayName = user.email;
       let planName = 'Free Plan';
       
-      try {
-        const { data: profile, error: profileError } = await supabaseClient
-          .from('profiles')
-          .select('full_name, plan')
-          .eq('id', user.id)
-          .maybeSingle();
+      // Fetch profile for full_name
+      const { data: profile, error: profileError } = await supabaseClient
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .maybeSingle();
 
-        if (profile) {
-          if (profile.full_name) displayName = profile.full_name;
-          if (profile.plan) planName = profile.plan;
-        } else if (user.user_metadata?.full_name) {
-          // Fallback to metadata if no profile row
-          displayName = user.user_metadata.full_name;
-        }
-      } catch (err) {
-        console.warn('Could not fetch profile, using fallback.', err);
-        if (user.user_metadata?.full_name) {
-          displayName = user.user_metadata.full_name;
-        }
+      if (profile && profile.full_name) {
+        displayName = profile.full_name;
+      } else if (user.user_metadata?.full_name) {
+        displayName = user.user_metadata.full_name;
+      }
+
+      // Fetch user plan
+      const { data: userPlan, error: planError } = await supabaseClient
+        .from('user_plans')
+        .select('plan_id, plans(name)')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (userPlan && userPlan.plans) {
+        planName = userPlan.plans.name;
       }
 
       userEmailSpan.textContent = user.email;
       userAvatar.textContent = (displayName?.[0] || 'U').toUpperCase();
       userPlanSpan.textContent = planName;
 
+      // Fetch analyses
       const { data, error } = await supabaseClient
         .from('analyses')
         .select('*')

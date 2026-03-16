@@ -83,7 +83,6 @@
       background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
     }
 
-    /* unified card */
     .card {
       background: var(--card-bg);
       border: 1px solid var(--border);
@@ -370,8 +369,8 @@
     // ============================================
     // Supabase Configuration
     // ============================================
-    const SUPABASE_URL = 'https://kkblbhghqcxpopmkjtbo.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrYmxiaGdocWN4cG9wbWtqdGJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNTQ5MDgsImV4cCI6MjA4ODczMDkwOH0.dkkEpQj0Dd9w7eFpmGGGfb1SBkNljXwJyX4hO5DMBFs';
+  const SUPABASE_URL = 'https://uttdfkxdwfsyrhamhjss.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV0dGRma3hkd2ZzeXJoYW1oanNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2MTUyNTQsImV4cCI6MjA4OTE5MTI1NH0.CnqTkYtI3SksWazpT5jru5KtwsDK6m1LaISCn9UsQ1c';
 
     const { createClient } = window.supabase;
     const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -383,6 +382,7 @@
       user: null,
       profile: null,
       plan: null,
+      creditsRemaining: 0,
       settings: { autoDelete: false },
       analysesCount: 0
     };
@@ -525,28 +525,44 @@
     });
 
     // ============================================
-    // Cancel Subscription
+    // Cancel Subscription (FIXED)
     // ============================================
     cancelSubscriptionBtn.addEventListener('click', () => openModal(cancelModal));
     document.getElementById('cancel-subscription-close').addEventListener('click', () => closeModal(cancelModal));
     document.getElementById('confirm-cancel-subscription').addEventListener('click', async () => {
       if (state.user && state.plan?.id !== 'free') {
+        // Get free plan details
+        const { data: freePlan, error: planError } = await supabaseClient
+          .from('plans')
+          .select('*')
+          .eq('id', 'free')
+          .single();
+        if (planError || !freePlan) {
+          showToast('Could not retrieve free plan', 'error');
+          return;
+        }
+
+        // Update user_plan to free with proper credits and reset date
         const { error } = await supabaseClient
           .from('user_plans')
-          .update({ plan_id: 'free' })
+          .update({
+            plan_id: 'free',
+            credits_remaining: freePlan.credits_per_month,
+            reset_date: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString().split('T')[0]
+          })
           .eq('user_id', state.user.id);
         if (error) {
           showToast('Cancellation failed', 'error');
           return;
         }
-        await fetchUserData();
+        await fetchUserData(); // refresh state
+        showToast('Subscription cancelled. You now have the Free plan.');
       }
-      showToast('Subscription cancelled. You\'ll have access until end of period.');
       closeModal(cancelModal);
     });
 
     // ============================================
-    // Delete Account
+    // Delete Account (FIXED – uses Edge Function)
     // ============================================
     const deleteConfirmInput = document.getElementById('delete-confirm-input');
     const confirmDeleteBtn = document.getElementById('confirm-delete');
@@ -564,17 +580,16 @@
       if (!state.user) return;
 
       try {
-        await supabaseClient.from('analyses').delete().eq('user_id', state.user.id);
-        await supabaseClient.from('user_plans').delete().eq('user_id', state.user.id);
-        await supabaseClient.from('user_settings').delete().eq('user_id', state.user.id);
-        await supabaseClient.from('profiles').delete().eq('id', state.user.id);
+        // Call edge function to delete the user
+        const { error } = await supabaseClient.functions.invoke('delete-account');
+        if (error) throw error;
 
-        await supabaseClient.auth.signOut();
-        showToast('Account data deleted. Redirecting...');
+        showToast('Account deleted. Redirecting...');
         setTimeout(() => window.location.href = 'index.html', 2000);
       } catch (error) {
         console.error('Delete error:', error);
         showToast('Failed to delete account', 'error');
+        closeModal(deleteModal);
       }
     });
 
@@ -611,7 +626,7 @@
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .single();
+        .maybeSingle(); // Use maybeSingle to avoid error if none
       if (profileError && profileError.code !== 'PGRST116') console.error(profileError);
       state.profile = profile || {};
 
@@ -629,7 +644,7 @@
         .select('auto_delete')
         .eq('user_id', user.id)
         .maybeSingle();
-      if (settingsError) console.error(settingsError);
+      if (settingsError && settingsError.code !== 'PGRST116') console.error(settingsError);
       state.settings.autoDelete = settings?.auto_delete ?? false;
 
       const { count, error: countError } = await supabaseClient
@@ -638,6 +653,7 @@
         .eq('user_id', user.id);
       if (!countError) state.analysesCount = count;
 
+      // Update UI
       userEmail.value = user.email;
       userEmailDropdown.textContent = user.email;
       userAvatar.textContent = (profile?.full_name?.[0] || user.email?.[0] || 'U').toUpperCase();

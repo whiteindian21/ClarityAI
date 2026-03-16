@@ -323,11 +323,9 @@
             <svg class="btn-spinner hidden w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
           </button>
         </form>
-
-        <!-- NO GOOGLE BUTTON / DIVIDER - REMOVED AS REQUESTED -->
       </div>
 
-      <!-- Footer terms (unchanged) -->
+      <!-- Footer terms -->
       <div class="px-6 sm:px-8 py-4 bg-surface-800/30 border-t border-surface-800 text-center">
         <p class="text-sm text-surface-500">By continuing, you agree to our <a href="#" class="text-surface-400 hover:text-accent transition-colors">Terms of Service</a> and <a href="#" class="text-surface-400 hover:text-accent transition-colors">Privacy Policy</a></p>
       </div>
@@ -374,13 +372,29 @@
   <!-- Main Application Script -->
   <script>
     // ============================================
-    // Supabase Configuration
+    // Supabase Configuration (with dynamic storage)
     // ============================================
-    const SUPABASE_URL = 'https://kkblbhghqcxpopmkjtbo.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrYmxiaGdocWN4cG9wbWtqdGJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNTQ5MDgsImV4cCI6MjA4ODczMDkwOH0.dkkEpQj0Dd9w7eFpmGGGfb1SBkNljXwJyX4hO5DMBFs';
-    
-    const { createClient } = window.supabase;
-    const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const SUPABASE_URL = 'https://uttdfkxdwfsyrhamhjss.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV0dGRma3hkd2ZzeXJoYW1oanNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2MTUyNTQsImV4cCI6MjA4OTE5MTI1NH0.CnqTkYtI3SksWazpT5jru5KtwsDK6m1LaISCn9UsQ1c';
+
+    // We'll keep a reference to the current client
+    let supabaseClient;
+
+    // Helper to create a client with a specific storage type
+    function createSupabaseClient(useLocalStorage = true) {
+      const storage = useLocalStorage ? localStorage : sessionStorage;
+      return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+          storage: storage,
+        },
+      });
+    }
+
+    // Default client (localStorage)
+    supabaseClient = createSupabaseClient(true);
 
     // ============================================
     // DOM Elements
@@ -403,15 +417,14 @@
     const forgotPasswordBtn = document.getElementById('forgot-password-btn');
 
     // ============================================
-    // Tab Switching
+    // Tab Switching (FIXED)
     // ============================================
     function switchTab(tab) {
       hideMessages();
-      
+
       loginForm.classList.add('hidden');
       signupForm.classList.add('hidden');
       resetForm.classList.add('hidden');
-      authTabs.classList.remove('hidden');
 
       const isLogin = tab === 'login';
       const isSignup = tab === 'signup';
@@ -420,13 +433,17 @@
       if (isReset) {
         authTabs.classList.add('hidden');
         resetForm.classList.remove('hidden');
+        // Clear reset fields
+        document.getElementById('reset-password').value = '';
+        document.getElementById('reset-confirm').value = '';
       } else {
+        authTabs.classList.remove('hidden'); // FIX: ensure tabs are visible
         tabLogin.classList.toggle('text-surface-50', isLogin);
         tabLogin.classList.toggle('text-surface-400', !isLogin);
         tabSignup.classList.toggle('text-surface-50', isSignup);
         tabSignup.classList.toggle('text-surface-400', !isSignup);
         tabIndicator.style.transform = isLogin ? 'translateX(0)' : 'translateX(100%)';
-        
+
         if (isLogin) loginForm.classList.remove('hidden');
         if (isSignup) signupForm.classList.remove('hidden');
       }
@@ -545,26 +562,31 @@
     }
 
     // ============================================
-    // Login Form Handler
+    // Login Form Handler (with Remember Me)
     // ============================================
     loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       hideMessages();
+
       const email = document.getElementById('login-email').value.trim();
       const password = document.getElementById('login-password').value;
+      const rememberMe = document.getElementById('remember-me').checked;
+
       let hasError = false;
-      
       clearError('login-email-error');
       clearError('login-password-error');
-      
+
       if (!email) { showError('login-email-error', 'Email is required'); hasError = true; }
       else if (!validateEmail(email)) { showError('login-email-error', 'Please enter a valid email'); hasError = true; }
       if (!password) { showError('login-password-error', 'Password is required'); hasError = true; }
       if (hasError) return;
 
+      // Create a new client with the desired storage type based on "Remember me"
+      supabaseClient = createSupabaseClient(rememberMe);
+
       const submitBtn = document.getElementById('login-submit');
       setLoading(submitBtn, true);
-      
+
       try {
         const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -575,21 +597,24 @@
         if (error.message.includes('Invalid login credentials')) showGlobalError('Invalid email or password. Please try again.');
         else if (error.message.includes('Email not confirmed')) showGlobalError('Please check your email and confirm your account.');
         else showGlobalError(error.message || 'An error occurred. Please try again.');
-      } finally { setLoading(submitBtn, false); }
+      } finally {
+        setLoading(submitBtn, false);
+      }
     });
 
     // ============================================
-    // Signup Form Handler
+    // Signup Form Handler (no remember me needed, but we use default client)
     // ============================================
     signupForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       hideMessages();
+
       const fullName = document.getElementById('signup-name').value.trim();
       const email = document.getElementById('signup-email').value.trim();
       const password = document.getElementById('signup-password').value;
       const confirmPassword = document.getElementById('signup-confirm').value;
-      let hasError = false;
 
+      let hasError = false;
       clearError('signup-name-error');
       clearError('signup-email-error');
       clearError('signup-password-error');
@@ -598,16 +623,14 @@
       if (!fullName) { showError('signup-name-error', 'Full name is required'); hasError = true; }
       if (!email) { showError('signup-email-error', 'Email is required'); hasError = true; }
       else if (!validateEmail(email)) { showError('signup-email-error', 'Please enter a valid email'); hasError = true; }
-      
       if (!password) { showError('signup-password-error', 'Password is required'); hasError = true; }
       else if (password.length < 8) { showError('signup-password-error', 'Password must be at least 8 characters'); hasError = true; }
-      
       if (password !== confirmPassword) { showError('signup-confirm-error', 'Passwords do not match'); hasError = true; }
       if (hasError) return;
 
       const submitBtn = document.getElementById('signup-submit');
       setLoading(submitBtn, true);
-      
+
       try {
         const { data, error } = await supabaseClient.auth.signUp({
           email,
@@ -618,7 +641,7 @@
           }
         });
         if (error) throw error;
-        
+
         if (data.user && !data.session) {
           showSuccess('Account created! Please check your email to confirm your account.');
         } else {
@@ -629,7 +652,9 @@
         console.error('Signup error:', error);
         if (error.message.includes('already registered')) showGlobalError('An account with this email already exists. Try logging in instead.');
         else showGlobalError(error.message || 'An error occurred. Please try again.');
-      } finally { setLoading(submitBtn, false); }
+      } finally {
+        setLoading(submitBtn, false);
+      }
     });
 
     // ============================================
@@ -638,6 +663,7 @@
     resetForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       hideMessages();
+
       const password = document.getElementById('reset-password').value;
       const confirmPassword = document.getElementById('reset-confirm').value;
       let hasError = false;
@@ -658,15 +684,17 @@
         if (error) throw error;
         showSuccess('Password updated successfully! Redirecting to login...');
         await supabaseClient.auth.signOut();
-        setTimeout(() => { 
-          switchTab('login'); 
+        setTimeout(() => {
+          switchTab('login');
           document.getElementById('reset-password').value = '';
           document.getElementById('reset-confirm').value = '';
         }, 2000);
       } catch (error) {
         console.error('Reset error:', error);
         showGlobalError(error.message || 'Failed to update password.');
-      } finally { setLoading(submitBtn, false); }
+      } finally {
+        setLoading(submitBtn, false);
+      }
     });
 
     // ============================================
@@ -693,17 +721,23 @@
       e.preventDefault();
       const email = document.getElementById('forgot-email').value.trim();
       if (!email || !validateEmail(email)) return;
+
       const submitBtn = forgotForm.querySelector('button[type="submit"]');
       setLoading(submitBtn, true);
+
       try {
-        const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + window.location.pathname });
+        const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+          redirectTo: window.location.origin + window.location.pathname,
+        });
         if (error) throw error;
         closeForgotModalFn();
         showSuccess('If an account exists with that email, you will receive a password reset link.');
       } catch (error) {
         console.error('Reset error:', error);
         showGlobalError('An error occurred. Please try again.');
-      } finally { setLoading(submitBtn, false); }
+      } finally {
+        setLoading(submitBtn, false);
+      }
     });
 
     // ============================================
@@ -711,19 +745,19 @@
     // ============================================
     supabaseClient.auth.onAuthStateChange((event, session) => {
       console.log(`Auth Event: ${event}`);
-      
+
       if (event === 'PASSWORD_RECOVERY') {
         showSuccess('You can now set a new password.');
         switchTab('reset');
       }
-      
+
       if (event === 'SIGNED_IN') {
         const isResetView = !resetForm.classList.contains('hidden');
         if (!isResetView && window.location.pathname.includes('login')) {
           window.location.href = 'dashboard.html';
         }
       }
-      
+
       if (event === 'INITIAL_SESSION') {
         if (session) {
           window.location.href = 'dashboard.html';
