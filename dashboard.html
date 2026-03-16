@@ -589,8 +589,14 @@
       }
 
       try {
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) throw new Error('User not authenticated');
+        // Refresh session to ensure token is fresh
+        const { data: { session }, error: refreshError } = await supabaseClient.auth.refreshSession();
+        if (refreshError || !session) {
+          console.error('Session refresh failed:', refreshError);
+          throw new Error('Please log in again');
+        }
+
+        console.log('Using token:', session.access_token); // For debugging
 
         // Call Edge Function with explicit Authorization header
         const { data, error } = await supabaseClient.functions.invoke(
@@ -620,7 +626,7 @@
           const { data: deducted, error: deductError } = await supabaseClient.rpc('deduct_credit', {
             user_id: state.user.id
           });
-          if (deductError || !deducted) {
+          if ( deductError || !deducted) {
             console.error('Credit deduction error:', deductError);
             showToast('Failed to deduct credit', 'error');
             return null;
